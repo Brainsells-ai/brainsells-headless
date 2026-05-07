@@ -1,16 +1,15 @@
 const SHOPIFY_DOMAIN = "silbe-shop.myshopify.com";
+const SHOPIFY_TOKEN = "24ad4572efe855dd32f0e5f99ddd7b4e";
 const API_VERSION = "2026-01";
 
 export async function shopifyFetch<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
-  const privateToken = process.env.SHOPIFY_STOREFRONT_PRIVATE_TOKEN;
-
   const response = await fetch(
     `https://${SHOPIFY_DOMAIN}/api/${API_VERSION}/graphql.json`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Shopify-Storefront-Private-Token": privateToken!,
+        "X-Shopify-Storefront-Access-Token": SHOPIFY_TOKEN,
       },
       body: JSON.stringify({ query, variables }),
       cache: "no-store",
@@ -22,10 +21,8 @@ export async function shopifyFetch<T>(query: string, variables?: Record<string, 
   }
 
   const json = await response.json();
-
   if (json.errors) {
     throw new Error(JSON.stringify(json.errors));
   }
-
   return json.data as T;
 }
