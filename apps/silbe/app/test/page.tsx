@@ -1,32 +1,63 @@
+import { shopifyFetch } from "@/lib/shopify";
+
+type Product = {
+  id: string;
+  title: string;
+  handle: string;
+  priceRange: {
+    minVariantPrice: {
+      amount: string;
+      currencyCode: string;
+    };
+  };
+};
+
+const PRODUCTS_QUERY = `{
+  products(first: 10) {
+    edges {
+      node {
+        id
+        title
+        handle
+        priceRange {
+          minVariantPrice {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+  }
+}`;
+
 export default async function TestPage() {
   try {
-    const response = await fetch(
-      "https://z9xkt0-2v.myshopify.com/api/2026-01/graphql.json",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Shopify-Storefront-Access-Token": process.env.NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN!,
-        },
-        body: JSON.stringify({ query: "{ shop { name } }" }),
-        cache: "no-store",
-      }
-    );
-
-    const text = await response.text();
+    const data = await shopifyFetch<{ products: { edges: { node: Product }[] } }>(PRODUCTS_QUERY);
+    const products = data.products.edges;
 
     return (
       <main style={{ padding: "2rem" }}>
-        <h1>Debug</h1>
-        <p>Status: {response.status}</p>
-        <p>Store domain: z9xkt0-2v.myshopify.com</p>
-        <p>Header used in lib/shopify.ts: X-Shopify-Storefront-Access-Token</p>
-        <p>NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN: {process.env.NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN?.substring(0, 15)}...</p>
-        <p>SHOPIFY_STOREFRONT_PRIVATE_TOKEN: {process.env.SHOPIFY_STOREFRONT_PRIVATE_TOKEN?.substring(0, 15)}...</p>
-        <pre>{text}</pre>
+        <h1>Shopify Products</h1>
+        <p>Found {products.length} products</p>
+        <ul>
+          {products.map(({ node }) => (
+            <li key={node.id} style={{ marginBottom: "1rem" }}>
+              <strong>{node.title}</strong>
+              <br />
+              Handle: {node.handle}
+              <br />
+              Price: {node.priceRange.minVariantPrice.amount} {node.priceRange.minVariantPrice.currencyCode}
+            </li>
+          ))}
+        </ul>
       </main>
     );
   } catch (error) {
-    return <pre>{String(error)}</pre>;
+    return (
+      <main style={{ padding: "2rem" }}>
+        <h1>Error</h1>
+        <pre>{String(error)}</pre>
+      </main>
+    );
   }
 }
