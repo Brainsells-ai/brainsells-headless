@@ -8,6 +8,7 @@ export async function shopifyFetch<T>(query: string, variables?: Record<string, 
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Shopify-Storefront-Access-Token": process.env.NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN!,
       },
       body: JSON.stringify({ query, variables }),
       cache: "no-store",
