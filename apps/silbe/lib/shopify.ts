@@ -1,5 +1,4 @@
 const SHOPIFY_DOMAIN = "silbe-shop.myshopify.com";
-const SHOPIFY_TOKEN = "24ad4572efe855dd32f0e5f99ddd7b4e";
 const API_VERSION = "2026-01";
 
 export async function shopifyFetch<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
@@ -9,7 +8,6 @@ export async function shopifyFetch<T>(query: string, variables?: Record<string, 
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Shopify-Storefront-Access-Token": SHOPIFY_TOKEN,
       },
       body: JSON.stringify({ query, variables }),
       cache: "no-store",
@@ -17,7 +15,7 @@ export async function shopifyFetch<T>(query: string, variables?: Record<string, 
   );
 
   if (!response.ok) {
-    throw new Error(`Shopify API error: ${response.status}`);
+    throw new Error(`Shopify API error: ${response.status} ${await response.text()}`);
   }
 
   const json = await response.json();
