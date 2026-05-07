@@ -1,4 +1,4 @@
-const SHOPIFY_DOMAIN = "silbe-shop.myshopify.com";
+const SHOPIFY_DOMAIN = "z9xkt0-2v.myshopify.com";
 const API_VERSION = "2026-01";
 
 export async function shopifyFetch<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
