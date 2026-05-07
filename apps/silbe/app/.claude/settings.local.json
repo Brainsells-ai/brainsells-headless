@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(taskkill *)",
+      "PowerShell(pnpm dev *)",
+      "PowerShell(netstat *)"
+    ]
+  }
+}
