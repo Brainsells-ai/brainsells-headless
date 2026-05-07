@@ -20,7 +20,9 @@ export default async function TestPage() {
         <h1>Debug</h1>
         <p>Status: {response.status}</p>
         <p>Store domain: z9xkt0-2v.myshopify.com</p>
-        <p>Token used: {process.env.NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN?.substring(0, 15)}...</p>
+        <p>Header used in lib/shopify.ts: X-Shopify-Storefront-Access-Token</p>
+        <p>NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN: {process.env.NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN?.substring(0, 15)}...</p>
+        <p>SHOPIFY_STOREFRONT_PRIVATE_TOKEN: {process.env.SHOPIFY_STOREFRONT_PRIVATE_TOKEN?.substring(0, 15)}...</p>
         <pre>{text}</pre>
       </main>
     );
