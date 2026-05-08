@@ -142,7 +142,7 @@ export function Footer() {
             gap: '16px',
           }}
         >
-          <Wordmark variant="gold" width={140} height={42} />
+          <Wordmark variant="gold" height={42} />
           <p
             style={{
               fontFamily: 'var(--font-inter), system-ui, sans-serif',

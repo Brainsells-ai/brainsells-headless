@@ -34,6 +34,15 @@ yarn-error.log*
 .env*
 !.env.example
 
+# playwright artifacts (snapshots are tracked, reports/results are not)
+/playwright-report
+/test-results
+/blob-report
+/playwright/.cache
+
+# lighthouse-ci artifacts
+/.lighthouseci
+
 # vercel
 .vercel
 
