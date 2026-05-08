@@ -9,7 +9,11 @@
     "lint": "eslint",
     "lint:content": "tsx scripts/content-lint.ts",
     "import:bundle": "tsx scripts/import-bundle.ts",
-    "import:brain": "tsx scripts/import-brain-assets.ts"
+    "import:brain": "tsx scripts/import-brain-assets.ts",
+    "payload": "payload",
+    "payload:generate-importmap": "payload generate:importmap",
+    "payload:generate-types": "payload generate:types",
+    "seed:pages": "tsx scripts/seed-pages.ts"
   },
   "dependencies": {
     "@payloadcms/db-postgres": "^3.0.0",
@@ -30,6 +34,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "lighthouse-ci": "^1.13.1",
