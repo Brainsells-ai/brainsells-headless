@@ -1,0 +1,18 @@
+{
+  "categories": {
+    "performance": 90,
+    "accessibility": 95,
+    "best-practices": 95,
+    "seo": 100
+  },
+  "metrics": {
+    "largest-contentful-paint": 2000,
+    "cumulative-layout-shift": 0.05,
+    "total-blocking-time": 150
+  },
+  "resourceSizes": {
+    "stylesheet": 60,
+    "script": 120
+  },
+  "notes": "Mobile targets per docs/brand-tokens.md §8. Desktop budgets are stricter (LCP ≤ 1200ms, CLS ≤ 0.02, TBT ≤ 50ms, performance ≥ 95). Resource sizes in KB gzipped per route."
+}
