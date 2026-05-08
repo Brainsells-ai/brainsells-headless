@@ -43,6 +43,22 @@ body {
   hyphens: auto;
 }
 
+.silbe-mobile-only {
+  display: inline-flex;
+}
+.silbe-desktop-only {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .silbe-mobile-only {
+    display: none;
+  }
+  .silbe-desktop-only {
+    display: inline-flex;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
