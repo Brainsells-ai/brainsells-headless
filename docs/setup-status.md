@@ -26,7 +26,7 @@
 
 
 
-\## Vercel Environment Variables
+\## Vercel Environment Variables (Project: brainsells-headless)
 
 \- NEXT\_PUBLIC\_SHOPIFY\_STORE\_DOMAIN: ✅ Production + Preview
 
@@ -36,7 +36,7 @@
 
 \- PAYLOAD\_SECRET: ✅ Production + Preview (32-char base64, generated via PowerShell)
 
-\- PAYLOAD\_PUBLIC\_SERVER\_URL: ⏳ noch zu setzen → https://brainsells-headless.vercel.app
+\- PAYLOAD\_PUBLIC\_SERVER\_URL: ✅ Production + Preview + Development (https://brainsells-headless.vercel.app)
 
 \- DATABASE\_URI: ✅ Production + Preview (Railway brainsells-headless project)
 
@@ -54,9 +54,9 @@
 
 \## Lokale .env.local
 
-\- Pfad: apps/silbe/.env.local
+\- Pfad: C:\\Users\\Administrator\\Developer\\brainsells-headless\\apps\\silbe\\.env.local
 
-\- Status: ✅ angelegt mit Production-Werten
+\- Status: ✅ angelegt mit Production-Werten (alle 6 Variables synchron zu Vercel)
 
 \- In .gitignore: ✅ verifiziert
 
@@ -66,9 +66,9 @@
 
 \- Provider: Railway (Hobby Tier)
 
-\- Project: brainsells-headless
+\- Project: brainsells-headless (separates Railway-Projekt, NICHT die agentcommerce-dev Postgres)
 
-\- Region: \[hier eintragen welche Region du gewählt hast]
+\- Region: EU
 
 \- Database: railway (Default-Name)
 
@@ -78,9 +78,35 @@
 
 
 
-\## Brain-Repo Klon-Pfad
+\## Brain-Repo
 
-\- Pfad: \[hier eintragen nach Punkt 5 Test]
+\- Pfad: C:\\Users\\Administrator\\Developer\\brainsells-brain
+
+\- Status: ✅ geklont (60.48 MB, 13607 files) und nach Profile-Cleanup ins Hauptprofil verschoben
+
+
+
+\## Headless-Repo
+
+\- Pfad: C:\\Users\\Administrator\\Developer\\brainsells-headless
+
+\- Status: ✅ existiert mit Default-Scaffold + 5 Doc-Files unter docs/
+
+\- Branch: main
+
+
+
+\## Windows-System
+
+\- Profil-Verzeichnis: C:\\Users\\Administrator\\ (Account-Name historisch "Administrator", Display-Name "Merlin")
+
+\- whoami: desktop-58hv9a\\merlin
+
+\- $HOME: C:\\Users\\Administrator (konsistent mit Profil-Pfad)
+
+\- Repos liegen unter C:\\Users\\Administrator\\Developer\\
+
+\- Hinweis für Claude Code: absolute Pfade verwenden, alle Pfade beginnen mit C:\\Users\\Administrator\\Developer\\brainsells-headless\\
 
 
 
@@ -99,6 +125,18 @@
 \- DATABASE\_URI nur in Production+Preview Scope (nicht Development) — Sensitive-Variables-Constraint von Vercel
 
 \- Lokale Entwicklung läuft über .env.local statt Vercel Development-Scope
+
+\- Repo-Pfad C:\\Users\\Administrator\\ statt C:\\Users\\Merlin\\ — Account-historische Profil-Bezeichnung, nicht änderbar ohne kompletten Windows-User-Reset
+
+
+
+\## Phase-0-Hinweise an Claude Code
+
+\- lib/shopify.ts: Refactoring nötig — derzeit cache: 'no-store' (Probe-Code), MEGAPROMPT §2.1 verlangt ISR mit revalidateTag
+
+\- packages/ui/: behalten als Skeleton für Phase-2-Multi-Brand-Extraktion
+
+\- app/test/: löschen wie in §0.2 spezifiziert
 
 
 
