@@ -112,9 +112,11 @@ brainsells-headless/
 
 ### Latest Phase Hand-off
 
+- **Phase 1** (layout: header, footer, mobile drawer, fonts): see
+  `.claude/handoff-phase-1.md`. PR #2, branch `phase-1-layout`.
+  Carry-overs from Phase 0 all closed.
 - Phase 0 (setup, tokens, bundle, content-lint, redirects): merged in PR #1
-  (`a3c7c0f`). Carry-overs: pnpm-workspace consolidation, Geist→brand fonts,
-  globals.css font-var sync. All three are scheduled into Phase 1.
+  (`a3c7c0f`).
 - Future memos: `.claude/handoff-phase-N.md`.
 
 ## Windows Path Note
