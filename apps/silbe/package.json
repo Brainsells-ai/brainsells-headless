@@ -8,6 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "lint:content": "tsx scripts/content-lint.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:update": "playwright test --update-snapshots",
+    "test:lighthouse": "lhci autorun",
     "import:bundle": "tsx scripts/import-bundle.ts",
     "import:brain": "tsx scripts/import-brain-assets.ts"
   },
@@ -25,6 +28,7 @@
     "zustand": "^4.5.0"
   },
   "devDependencies": {
+    "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.45.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
@@ -32,7 +36,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
-    "lighthouse-ci": "^1.13.1",
     "tailwindcss": "^4",
     "tsx": "^4.19.0",
     "typescript": "^5",

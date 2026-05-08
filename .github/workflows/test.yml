@@ -1,0 +1,55 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  silbe:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/silbe
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: .
+
+      - name: Content lint
+        run: pnpm lint:content
+
+      - name: Build
+        run: pnpm build
+
+      - name: Install Playwright browsers
+        run: pnpm playwright install --with-deps chromium
+
+      # Snapshots are committed Win32-flavored (developer machine) and have
+      # not yet been generated for Linux. CI runs everything except @snapshot
+      # specs until we add a Linux baseline-generation job.
+      - name: Playwright tests (non-snapshot)
+        run: pnpm test:e2e -- --grep-invert "@snapshot"
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/silbe/playwright-report
+          retention-days: 14
