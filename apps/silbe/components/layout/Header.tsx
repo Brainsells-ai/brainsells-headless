@@ -39,13 +39,13 @@ export function Header() {
             <MobileDrawer />
           </span>
           <span className="silbe-desktop-only">
-            <Wordmark variant="ink" width={140} height={32} priority />
+            <Wordmark variant="ink" height={32} priority />
           </span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <span className="silbe-mobile-only">
-            <Wordmark variant="ink" width={120} height={28} priority />
+            <Wordmark variant="ink" height={28} priority />
           </span>
           <nav
             className="silbe-desktop-only"

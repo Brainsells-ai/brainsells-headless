@@ -5,7 +5,6 @@ type Variant = 'ink' | 'cream' | 'gold';
 
 type Props = {
   variant?: Variant;
-  width?: number;
   height?: number;
   href?: string | null;
   className?: string;
@@ -18,7 +17,12 @@ const sourceByVariant: Record<Variant, string> = {
   gold: '/brand/wordmark-hot2-transparent-gold.png',
 };
 
-export function Wordmark({ variant = 'ink', width = 140, height = 41, href = '/', className, priority = false }: Props) {
+// Intrinsic dimensions of the HOT 2 wordmark PNGs (logos-final canonical
+// renders): 1027 × 302. Width is derived from height to preserve aspect.
+const INTRINSIC_RATIO = 1027 / 302;
+
+export function Wordmark({ variant = 'ink', height = 32, href = '/', className, priority = false }: Props) {
+  const width = Math.round(height * INTRINSIC_RATIO);
   const img = (
     <Image
       src={sourceByVariant[variant]}
@@ -27,7 +31,7 @@ export function Wordmark({ variant = 'ink', width = 140, height = 41, href = '/'
       height={height}
       priority={priority}
       className={className}
-      style={{ display: 'block', height: 'auto', width: 'auto', maxHeight: `${height}px`, maxWidth: `${width}px` }}
+      style={{ display: 'block' }}
     />
   );
   if (!href) return img;
