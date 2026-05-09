@@ -112,12 +112,24 @@ brainsells-headless/
 
 ### Latest Phase Hand-off
 
+Always read `.claude/handoff-phase-LATEST.md` at session start — it's the
+single source of truth for the most recent memo.
+
+- **Phase 2** (homepage: hybrid hero, trust-bar, fünf stimmen, featured
+  editions, werkstatt teaser, editorial letter, bibliothek teaser): see
+  `.claude/handoff-phase-2.md`. PR #5 (`c6c679e`). Companion build-pipeline
+  hotfixes shipped as PRs #6 (`f099b61`, turbo.json env), #7 (`6e283ac`,
+  GitHub Actions env), #8 (`2bb8c47`, Playwright args forwarding).
+- **Phase 1.5b** (payload bootstrap): see `.claude/handoff-phase-1.5b.md`.
+  PR #4 (`2de0ab8`).
+- **Phase 1.5a** (playwright scaffolding + CI): see
+  `.claude/handoff-phase-1.5a.md`. PR #3 (`8d5c741`).
 - **Phase 1** (layout: header, footer, mobile drawer, fonts): see
-  `.claude/handoff-phase-1.md`. PR #2, branch `phase-1-layout`.
-  Carry-overs from Phase 0 all closed.
-- Phase 0 (setup, tokens, bundle, content-lint, redirects): merged in PR #1
-  (`a3c7c0f`).
-- Future memos: `.claude/handoff-phase-N.md`.
+  `.claude/handoff-phase-1.md`. PR #2 (`82dcb34`).
+- **Phase 0** (setup, tokens, bundle, content-lint, redirects): merged in
+  PR #1 (`a3c7c0f`). No memo.
+- Future memos: `.claude/handoff-phase-N.md`. Update
+  `handoff-phase-LATEST.md` to point at the new memo at phase close.
 
 ## Windows Path Note
 
