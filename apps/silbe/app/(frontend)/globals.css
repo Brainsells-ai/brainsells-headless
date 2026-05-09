@@ -59,6 +59,27 @@ body {
   }
 }
 
+@media (min-width: 768px) {
+  .silbe-hero-grid {
+    grid-template-columns: 5fr 7fr;
+  }
+  .silbe-trustbar-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+  .silbe-stimme-row {
+    grid-template-columns: 96px 1fr;
+  }
+  .silbe-featured-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+  .silbe-werkstatt-grid {
+    grid-template-columns: 5fr 6fr;
+  }
+  .silbe-bibliothek-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
