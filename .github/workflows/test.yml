@@ -16,6 +16,17 @@ jobs:
     defaults:
       run:
         working-directory: apps/silbe
+    # Required for `next build` (payload.config.ts loads at module top-level
+    # and throws if PAYLOAD_SECRET / DATABASE_URI are missing) and for the
+    # Playwright `webServer: pnpm dev` step (same module-load path). Set at
+    # job level so any future step inherits without a per-step env block.
+    env:
+      PAYLOAD_SECRET: ${{ secrets.PAYLOAD_SECRET }}
+      PAYLOAD_PUBLIC_SERVER_URL: ${{ secrets.PAYLOAD_PUBLIC_SERVER_URL }}
+      DATABASE_URI: ${{ secrets.DATABASE_URI }}
+      NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN: ${{ secrets.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN }}
+      NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN: ${{ secrets.NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN }}
+      SHOPIFY_STOREFRONT_PRIVATE_TOKEN: ${{ secrets.SHOPIFY_STOREFRONT_PRIVATE_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
