@@ -54,8 +54,11 @@ jobs:
       # Snapshots are committed Win32-flavored (developer machine) and have
       # not yet been generated for Linux. CI runs everything except @snapshot
       # specs until we add a Linux baseline-generation job.
+      # Calls the dedicated script directly — `pnpm <script> -- <args>` passes
+      # `--` literally to Playwright, which reads it as a positional filter
+      # regex and reports "No tests found".
       - name: Playwright tests (non-snapshot)
-        run: pnpm test:e2e -- --grep-invert "@snapshot"
+        run: pnpm test:e2e:non-snapshot
 
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
