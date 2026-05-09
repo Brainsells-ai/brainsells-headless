@@ -1,53 +1,36 @@
-// Phase-1 holding page. Phase 2 (Homepage) replaces this entirely with the
-// hybrid hero, trust-bar, fünf Stimmen, featured editions, etc.
-export default function Home() {
+import type { Metadata } from 'next';
+import { Hero } from '@/components/home/Hero';
+import { TrustBar } from '@/components/home/TrustBar';
+import { FuenfStimmen } from '@/components/home/FuenfStimmen';
+import { FeaturedEditions } from '@/components/home/FeaturedEditions';
+import { WerkstattTeaser } from '@/components/home/WerkstattTeaser';
+import { BibliothekTeaser } from '@/components/home/BibliothekTeaser';
+import { EditorialLetter } from '@/components/home/EditorialLetter';
+
+export const revalidate = 3600;
+
+export const metadata: Metadata = {
+  title: {
+    absolute: 'SILBE — Editorial Klassiker für Lesende im deutschsprachigen Raum',
+  },
+  description:
+    'Worte deutschsprachiger Klassiker als Kunstdrucke auf hochweißem Premium-Papier, 200 g/m², matt, säurefrei. Rilke, Kafka, Mann, Zweig, Ebner-Eschenbach. Versand DE/AT 3–6 Werktage.',
+  alternates: { canonical: '/' },
+  openGraph: {
+    images: [{ url: '/og/og-five-klassiker-a.png', width: 1200, height: 630 }],
+  },
+};
+
+export default function HomePage() {
   return (
-    <section
-      style={{
-        maxWidth: 'var(--container-prose)',
-        margin: '0 auto',
-        padding: '96px 24px 120px',
-        textAlign: 'center',
-      }}
-    >
-      <p
-        style={{
-          fontFamily: 'var(--font-inter), system-ui, sans-serif',
-          fontSize: '11px',
-          letterSpacing: '0.18em',
-          textTransform: 'uppercase',
-          color: 'var(--color-taupe)',
-          marginBottom: '24px',
-        }}
-      >
-        Editorial Klassiker · Wien
-      </p>
-      <h1
-        style={{
-          fontFamily: 'var(--font-cormorant), Georgia, serif',
-          fontStyle: 'italic',
-          fontSize: 'clamp(2.5rem, 5vw + 1rem, 4.5rem)',
-          lineHeight: 1.1,
-          color: 'var(--color-ink)',
-          textWrap: 'balance',
-          margin: 0,
-        }}
-      >
-        SILBE
-      </h1>
-      <p
-        style={{
-          fontFamily: 'var(--font-crimson), Georgia, serif',
-          fontSize: '17px',
-          lineHeight: 1.6,
-          color: 'var(--color-ink)',
-          maxWidth: '420px',
-          margin: '32px auto 0',
-        }}
-      >
-        Worte deutschsprachiger Klassiker als Kunstdrucke. Diese Seite ist in
-        Vorbereitung.
-      </p>
-    </section>
+    <>
+      <Hero />
+      <TrustBar />
+      <FeaturedEditions />
+      <FuenfStimmen />
+      <EditorialLetter />
+      <WerkstattTeaser />
+      <BibliothekTeaser />
+    </>
   );
 }
