@@ -27,8 +27,8 @@
     "lucide-react": "^0.469.0",
     "next": "16.2.4",
     "payload": "^3.0.0",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
     "sharp": "^0.33.0",
     "zustand": "^4.5.0"
   },
