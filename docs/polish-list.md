@@ -556,3 +556,8 @@ deinstalliert werden. Vor Uninstall: verifizieren welche der Apps
 
 tatsächlich produktiv genutzt werden (Storefront-Token vs Admin-Token).
 
+### Multi-Blank-Line Cleanup in polish-list.md
+- **Owner:** Tech
+- **Deferred from:** Phase 3 session-close (2026-05-11)
+- **Gate:** Polish-Sprint
+
