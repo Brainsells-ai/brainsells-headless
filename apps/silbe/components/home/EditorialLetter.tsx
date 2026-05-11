@@ -1,4 +1,5 @@
 import { getPayload } from '@/lib/getPayload';
+import { CapsLabel } from '@/components/primitives/CapsLabel';
 
 const FALLBACK_TITLE = 'Warum fünf Stimmen — und nicht fünfzig.';
 const FALLBACK_BODY = `Wir lesen jedes Zitat zur Quelle. Wir kuratieren jede Edition mit Sorgfalt. Wir entscheiden uns für Tiefe statt Breite — fünf Autor:innen aus dem deutschsprachigen Kanon, deren Worte länger Bestand haben als jede Mode.
@@ -56,19 +57,7 @@ export async function EditorialLetter() {
           gap: '32px',
         }}
       >
-        <p
-          style={{
-            fontFamily: 'var(--font-inter), system-ui, sans-serif',
-            fontSize: '11px',
-            fontWeight: 500,
-            letterSpacing: '0.18em',
-            textTransform: 'uppercase',
-            color: 'var(--color-taupe)',
-            margin: 0,
-          }}
-        >
-          Editorial-Brief
-        </p>
+        <CapsLabel>Editorial-Brief</CapsLabel>
         <h2
           style={{
             fontFamily: 'var(--font-cormorant), Georgia, serif',

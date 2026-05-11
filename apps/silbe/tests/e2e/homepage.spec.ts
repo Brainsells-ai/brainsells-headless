@@ -13,7 +13,7 @@ test.describe('hero hybrid layout', () => {
     await expect(h1).toBeVisible();
     await expect(h1).toContainText('Habe Geduld gegen alles Ungelöste');
     await expect(h1).toContainText('„'); // deutsches Anführungszeichen
-    await expect(h1).toContainText('"');
+    await expect(h1).toContainText('“');
 
     // Source caption with Guillemets.
     const source = page.getByText(/Rainer Maria Rilke · ›Briefe an einen jungen Dichter‹ · 1903/);

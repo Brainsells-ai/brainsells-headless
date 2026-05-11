@@ -1,76 +1,10 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
-import { shopifyFetch, SHOPIFY_TAGS } from '@/lib/shopify';
+import { CapsLabel } from '@/components/primitives/CapsLabel';
+import { getFeaturedEditions, type SummaryProduct } from '@/lib/shopify-queries';
 
-type Money = { amount: string; currencyCode: string };
-type ImageNode = { url: string; altText: string | null; width: number; height: number };
-type ProductNode = {
-  id: string;
-  handle: string;
-  title: string;
-  priceRange: { minVariantPrice: Money };
-  featuredImage: ImageNode | null;
-};
-
-type FeaturedCollectionResponse = {
-  collection: { products: { nodes: ProductNode[] } } | null;
-};
-
-type FallbackResponse = { products: { nodes: ProductNode[] } };
-
-const FEATURED_QUERY = /* GraphQL */ `
-  query FeaturedEditions {
-    collection(handle: "featured") {
-      products(first: 4) {
-        nodes {
-          id
-          handle
-          title
-          priceRange { minVariantPrice { amount currencyCode } }
-          featuredImage { url altText width height }
-        }
-      }
-    }
-  }
-`;
-
-const FALLBACK_QUERY = /* GraphQL */ `
-  query BestSellingEditions {
-    products(first: 4, sortKey: BEST_SELLING) {
-      nodes {
-        id
-        handle
-        title
-        priceRange { minVariantPrice { amount currencyCode } }
-        featuredImage { url altText width height }
-      }
-    }
-  }
-`;
-
-async function fetchFeatured(): Promise<ProductNode[]> {
-  try {
-    const data = await shopifyFetch<FeaturedCollectionResponse>(FEATURED_QUERY, undefined, {
-      tags: [SHOPIFY_TAGS.collection('featured'), SHOPIFY_TAGS.products],
-    });
-    const nodes = data.collection?.products.nodes ?? [];
-    if (nodes.length > 0) return nodes;
-  } catch (err) {
-    console.error('[FeaturedEditions] featured collection fetch failed:', err);
-  }
-  try {
-    const data = await shopifyFetch<FallbackResponse>(FALLBACK_QUERY, undefined, {
-      tags: [SHOPIFY_TAGS.products],
-    });
-    return data.products.nodes;
-  } catch (err) {
-    console.error('[FeaturedEditions] BEST_SELLING fallback failed:', err);
-    return [];
-  }
-}
-
-function formatPrice(money: Money): string {
+function formatPrice(money: SummaryProduct['priceRange']['min']): string {
   const amount = Number(money.amount);
   if (!Number.isFinite(amount)) return '';
   return new Intl.NumberFormat('de-DE', {
@@ -84,7 +18,7 @@ const HAIRLINE_DIVIDER = '0.5px solid color-mix(in srgb, var(--color-ink) 15%, t
 const HAIRLINE_CARD = '0.5px solid color-mix(in srgb, var(--color-ink) 12%, transparent)';
 
 export async function FeaturedEditions() {
-  const products = await fetchFeatured();
+  const products = await getFeaturedEditions();
 
   if (products.length === 0) {
     return (
@@ -106,19 +40,7 @@ export async function FeaturedEditions() {
             justifyItems: 'start',
           }}
         >
-          <p
-            style={{
-              fontFamily: 'var(--font-inter), system-ui, sans-serif',
-              fontSize: '11px',
-              fontWeight: 500,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color: 'var(--color-taupe)',
-              margin: 0,
-            }}
-          >
-            Editionen
-          </p>
+          <CapsLabel>Editionen</CapsLabel>
           <p
             lang="de"
             style={{
@@ -160,19 +82,7 @@ export async function FeaturedEditions() {
         }}
       >
         <header style={{ display: 'grid', gap: '16px', maxWidth: '720px' }}>
-          <p
-            style={{
-              fontFamily: 'var(--font-inter), system-ui, sans-serif',
-              fontSize: '11px',
-              fontWeight: 500,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color: 'var(--color-taupe)',
-              margin: 0,
-            }}
-          >
-            Editionen
-          </p>
+          <CapsLabel>Editionen</CapsLabel>
           <h2
             style={{
               fontFamily: 'var(--font-cormorant), Georgia, serif',
@@ -254,7 +164,7 @@ export async function FeaturedEditions() {
                       margin: 0,
                     }}
                   >
-                    {formatPrice(product.priceRange.minVariantPrice)}
+                    {formatPrice(product.priceRange.min)}
                   </p>
                 </div>
               </Link>

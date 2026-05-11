@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
+import { CapsLabel } from '@/components/primitives/CapsLabel';
 
 type Stimme = {
   initial: string;
@@ -18,7 +19,7 @@ const STIMMEN: readonly Stimme[] = [
     lebensdaten: '1875–1926',
     lebensorte: 'Prag · Worpswede · Wien · Muzot',
     quote:
-      '„Vielleicht sind alle Drachen unseres Lebens Prinzessinnen, die nur darauf warten, uns einmal schön und mutig zu sehen."',
+      '„Vielleicht sind alle Drachen unseres Lebens Prinzessinnen, die nur darauf warten, uns einmal schön und mutig zu sehen.“',
     source: '›Briefe an einen jungen Dichter‹ · 1903',
     slug: 'rilke',
   },
@@ -28,7 +29,7 @@ const STIMMEN: readonly Stimme[] = [
     lebensdaten: '1883–1924',
     lebensorte: 'Prag',
     quote:
-      '„Ein Buch muss die Axt sein für das gefrorene Meer in uns."',
+      '„Ein Buch muss die Axt sein für das gefrorene Meer in uns.“',
     source: '›Brief an Oskar Pollak‹ · 27.01.1904',
     slug: 'kafka',
   },
@@ -37,7 +38,7 @@ const STIMMEN: readonly Stimme[] = [
     fullName: 'Thomas Mann',
     lebensdaten: '1875–1955',
     lebensorte: 'Lübeck · München · Pacific Palisades',
-    quote: '„Einsamkeit zeitigt das Originale."',
+    quote: '„Einsamkeit zeitigt das Originale.“',
     source: '›Der Tod in Venedig‹ · 1912',
     slug: 'mann',
   },
@@ -46,7 +47,7 @@ const STIMMEN: readonly Stimme[] = [
     fullName: 'Stefan Zweig',
     lebensdaten: '1881–1942',
     lebensorte: 'Wien · Salzburg · Petrópolis',
-    quote: '„Dir, der Du mich nie gekannt!"',
+    quote: '„Dir, der Du mich nie gekannt!“',
     source: '›Brief einer Unbekannten‹ · 1922',
     slug: 'zweig',
   },
@@ -55,7 +56,7 @@ const STIMMEN: readonly Stimme[] = [
     fullName: 'Marie von Ebner-Eschenbach',
     lebensdaten: '1830–1916',
     lebensorte: 'Mähren · Wien',
-    quote: '„Wer nichts weiß, muss alles glauben."',
+    quote: '„Wer nichts weiß, muss alles glauben.“',
     source: '›Aphorismen‹ · 1880',
     slug: 'ebner-eschenbach',
   },
@@ -82,19 +83,7 @@ export function FuenfStimmen() {
         }}
       >
         <header style={{ display: 'grid', gap: '20px', maxWidth: '720px' }}>
-          <p
-            style={{
-              fontFamily: 'var(--font-inter), system-ui, sans-serif',
-              fontSize: '11px',
-              fontWeight: 500,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color: 'var(--color-taupe)',
-              margin: 0,
-            }}
-          >
-            Die SILBE-Auswahl
-          </p>
+          <CapsLabel>Die SILBE-Auswahl</CapsLabel>
           <h2
             style={{
               fontFamily: 'var(--font-cormorant), Georgia, serif',

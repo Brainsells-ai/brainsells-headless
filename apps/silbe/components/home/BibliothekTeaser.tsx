@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/Button';
 import Link from 'next/link';
 import { getPayload } from '@/lib/getPayload';
+import { CapsLabel } from '@/components/primitives/CapsLabel';
 
 type Article = {
   slug: string;
@@ -88,19 +89,7 @@ export async function BibliothekTeaser() {
         }}
       >
         <header style={{ display: 'grid', gap: '16px', maxWidth: '720px' }}>
-          <p
-            style={{
-              fontFamily: 'var(--font-inter), system-ui, sans-serif',
-              fontSize: '11px',
-              fontWeight: 500,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color: 'var(--color-taupe)',
-              margin: 0,
-            }}
-          >
-            Bibliothek
-          </p>
+          <CapsLabel>Bibliothek</CapsLabel>
           <h2
             style={{
               fontFamily: 'var(--font-cormorant), Georgia, serif',
@@ -144,19 +133,7 @@ export async function BibliothekTeaser() {
                   alignContent: 'start',
                 }}
               >
-                <p
-                  style={{
-                    fontFamily: 'var(--font-inter), system-ui, sans-serif',
-                    fontSize: '11px',
-                    fontWeight: 500,
-                    letterSpacing: '0.18em',
-                    textTransform: 'uppercase',
-                    color: 'var(--color-taupe)',
-                    margin: 0,
-                  }}
-                >
-                  {article.rubrik}
-                </p>
+                <CapsLabel>{article.rubrik}</CapsLabel>
                 <h3
                   style={{
                     fontFamily: 'var(--font-cormorant), Georgia, serif',
