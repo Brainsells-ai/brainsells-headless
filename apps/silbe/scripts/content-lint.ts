@@ -98,11 +98,39 @@ function findInText(file: string, text: string): Finding[] {
   return findings;
 }
 
+// Vocab §4 — deutsche Anführungszeichen: opening „ (U+201E) must close with
+// " (U+201C), never with " (U+0022). Per-line heuristic: if a line contains
+// U+201E AND U+0022, the U+0022 is treated as a wrong closing. JSON-array
+// preview strings in TODO_AUTHOR comments (no U+201E on the same line) are
+// safe by construction.
+function findGermanQuoteMisuse(file: string, text: string): Finding[] {
+  const findings: Finding[] = [];
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const opens = [...line].some((c) => c.codePointAt(0) === 0x201e);
+    if (!opens) continue;
+    for (let j = 0; j < line.length; j++) {
+      if (line.charCodeAt(j) === 0x22) {
+        findings.push({
+          file,
+          line: i + 1,
+          col: j + 1,
+          pattern: 'U+0022 closing in German-quote context',
+          reason: 'Use U+201C (right double quotation mark) to close German quotes — siehe vocabulary.md §4',
+          excerpt: line.trim(),
+        });
+      }
+    }
+  }
+  return findings;
+}
+
 async function lintFile(absPath: string, relativeFrom: string): Promise<Finding[]> {
   const text = await fs.readFile(absPath, 'utf8');
   const rel = path.relative(relativeFrom, absPath);
   if (SELF_EXEMPT.has(rel)) return [];
-  return findInText(rel, text);
+  return [...findInText(rel, text), ...findGermanQuoteMisuse(rel, text)];
 }
 
 async function main() {

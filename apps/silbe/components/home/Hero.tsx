@@ -50,7 +50,7 @@ export function Hero() {
               margin: 0,
             }}
           >
-            „Habe Geduld gegen alles Ungelöste in Ihrem Herzen."
+            „Habe Geduld gegen alles Ungelöste in Ihrem Herzen.“
           </h1>
 
           <p

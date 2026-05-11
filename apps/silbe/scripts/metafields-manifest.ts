@@ -9,12 +9,12 @@
 // rather than a placeholder string — the seed-values script skips any
 // field that is a Todo, leaving it empty in Shopify until resolved.
 //
-// Vocabulary lint applies to every string value:
-//   - Deutsche Anführungszeichen „…" (U+201E + U+201C)
-//   - Werktitel in Guillemets ›…‹ (U+203A + U+2039)
-//   - Umlaute korrekt (ä ö ü ß)
-//   - Verbotene Begriffe (UWG-Risk): „limitiert", „Limited Edition",
-//     „handgesetzt", „handgedruckt", „handnummeriert" — niemals.
+// Vocabulary lint applies to every string value (enforced by
+// scripts/content-lint.ts, run in CI):
+//   - Deutsche Anführungszeichen U+201E + U+201C (opens low, closes high)
+//   - Werktitel in Guillemets U+203A + U+2039 (single-angle)
+//   - Umlaute korrekt (ä ö ü ß), niemals ae/oe/ue/ss
+//   - UWG-Bans per docs/vocabulary.md §7 — siehe content-lint FORBIDDEN list.
 
 import { type CanonicalVoice } from '../lib/constants/voices';
 
@@ -34,7 +34,9 @@ export const SURFACE_COPY = {
   shipping_duration: '3–6 Werktage',
   shipping_origin: 'Gedruckt in der EU, überwiegend in Deutschland',
   shipping_packaging: 'Versandzylinder aus recyceltem Material',
-  free_shipping_threshold: 'ab €39 frei',
+  // NOTE: free_shipping_threshold removed in Klasse-2 review — string was
+  // not anchored in vocabulary.md §6 P0 list. Add back to vocab and here
+  // if/when Aleks decides the canonical free-shipping copy.
 } as const;
 
 // ─── Todo discriminator ────────────────────────────────────────────────────
@@ -48,16 +50,30 @@ export function isTodo(value: unknown): value is Todo {
 
 // ─── Layer 2 — SKU manifest ────────────────────────────────────────────────
 
+// Discriminator for PDP-rendering pathway.
+//   - 'edition'      → Phase 3 PDP whitelist. Single-voice, single-or-multi-format.
+//   - 'postcard_set' → Phase 4 template (Multi-Quote-Render-Pfad). Excluded from Phase 3.
+//   - 'bundle'       → Phase 4 template (Multi-Voice-Composition). Excluded from Phase 3.
+export type ProductType = 'edition' | 'postcard_set' | 'bundle';
+
 export type SkuManifest = {
   handle: string;
-  // null = multi-voice bundle. Type-constrained: only canonical voices
-  // accepted, archived voices fail at compile time.
+  product_type: ProductType;
+  // null permitted only when product_type === 'bundle'. Type-constrained:
+  // only canonical voices accepted, archived voices fail at compile time.
   voice: CanonicalVoice | null;
   work_title: V<string>;
   work_year: V<number>;
   quote_full: V<string>;
-  format: V<string>;
-  dimensions_cm: V<string>;
+  // Multi-variant editions (Hero-style SKUs with A3+A2 variants) carry
+  // null — Variant.selectedOptions is the canonical SoT (β-strategy, TECH
+  // decision Merlin 2026-05-11). Single-variant editions (Goldrahmen,
+  // Postkarten-Sets) carry the explicit value pulled from Shopify.
+  // PDP reads variant.selectedOptions.find(o => o.name === 'Format').value
+  // for display; product-level metafield only fills JSON-LD additionalProperty
+  // when present.
+  format: V<string | null>;
+  dimensions_cm: V<string | null>;
   editorial_essay_handle: V<string>;
   themes: V<readonly string[]>;
   // Free-form notes — TODO_AUTHOR reasons land here for tracking, plus
@@ -71,23 +87,28 @@ export const EDITIONS: readonly SkuManifest[] = [
   // ─── Rilke ─────────────────────────────────────────────────────────────
   {
     handle: 'silbe-rilke-geduld-hero-burgundy',
+    product_type: 'edition',
     voice: 'rilke',
     work_title: '›Briefe an einen jungen Dichter‹',
     work_year: 1903,
-    quote_full: '„Habe Geduld gegen alles Ungelöste in Ihrem Herzen."',
-    format: 'A3',
-    dimensions_cm: '29.7 × 42',
+    quote_full: '„Habe Geduld gegen alles Ungelöste in Ihrem Herzen.“',
+    // Multi-variant (A3 + A2). β-strategy: product-level format/dimensions
+    // null, Variant.selectedOptions ('A3 (29.7 × 42 cm)' / 'A2 (42 × 59.4 cm)')
+    // is SoT.
+    format: null,
+    dimensions_cm: null,
     editorial_essay_handle: 'rilke-habe-geduld',
     themes: ['Sehnsucht', 'Wien', 'Geduld', 'Brief', 'Sprache'],
   },
   {
     handle: 'silbe-rilke-geduld-goldrahmen',
+    product_type: 'edition',
     voice: 'rilke',
     work_title: '›Briefe an einen jungen Dichter‹',
     work_year: 1903,
-    quote_full: '„Habe Geduld gegen alles Ungelöste in Ihrem Herzen."',
-    format: { TODO_AUTHOR: 'Goldrahmen-Edition Format/Dimensionen — A3 oder A2? Rahmen-Maße separat?' },
-    dimensions_cm: { TODO_AUTHOR: 'Goldrahmen-Edition Format/Dimensionen — A3 oder A2? Rahmen-Maße separat?' },
+    quote_full: '„Habe Geduld gegen alles Ungelöste in Ihrem Herzen.“',
+    format: 'A3',
+    dimensions_cm: '29.7 × 42',
     editorial_essay_handle: 'rilke-habe-geduld',
     themes: ['Sehnsucht', 'Wien', 'Geduld', 'Brief', 'Sprache'],
   },
@@ -95,15 +116,16 @@ export const EDITIONS: readonly SkuManifest[] = [
   // ─── Kafka ─────────────────────────────────────────────────────────────
   {
     handle: 'silbe-kafka-axt-goldrahmen',
+    product_type: 'edition',
     voice: 'kafka',
     work_title: '›Brief an Oskar Pollak‹',
     work_year: 1904,
     quote_full: {
       TODO_AUTHOR:
-        'Quote-Text muss byte-identisch zum Poster sein. Üblich „Ein Buch muß die Axt sein für das gefrorene Meer in uns." — aber muß vs muss, Vollständigkeit des Satzes, ggf. „in uns" vs „in uns selbst" gegen Poster verifizieren.',
+        'Quote-Text muss byte-identisch zum Poster sein. Üblich „Ein Buch muß die Axt sein für das gefrorene Meer in uns.“ — aber muß vs muss, Vollständigkeit des Satzes, ggf. „in uns“ vs „in uns selbst“ gegen Poster verifizieren.',
     },
-    format: { TODO_AUTHOR: 'Goldrahmen-Edition Format/Dimensionen' },
-    dimensions_cm: { TODO_AUTHOR: 'Goldrahmen-Edition Format/Dimensionen' },
+    format: 'A3',
+    dimensions_cm: '29.7 × 42',
     editorial_essay_handle: 'kafka-axt-gefrorenes-meer',
     themes: { TODO_AUTHOR: 'Themes finalisieren — Vorschlag aus Brand-Knowledge: ["Sprache", "Brief", "Innenwelt", "Bücher", "Prag"]' },
   },
@@ -111,23 +133,26 @@ export const EDITIONS: readonly SkuManifest[] = [
   // ─── Mann ──────────────────────────────────────────────────────────────
   {
     handle: 'silbe-mann-einsamkeit-hero-charcoal',
+    product_type: 'edition',
     voice: 'mann',
-    work_title: { TODO_AUTHOR: 'Einsamkeit-Quote — Quelle ›Der Tod in Venedig‹ (1912), ›Tonio Kröger‹ (1903) oder anderes?' },
+    work_title: { TODO_AUTHOR: 'Einsamkeit-Quote — Quelle ›Der Tod in Venedig‹ (1912), ›Tonio Kröger‹ (1903) oder anderes? Shopify-Title aktuell „Einsamkeit zeitigt das Originale“ → suggestiert ›Tonio Kröger‹ oder Notizbuch-Quelle.' },
     work_year: { TODO_AUTHOR: 'Werk-Jahr abhängig von Quelle (siehe work_title TODO)' },
-    quote_full: { TODO_AUTHOR: 'Konkreter Einsamkeit-Quote-Text — byte-identisch zum Poster' },
-    format: 'A3',
-    dimensions_cm: '29.7 × 42',
+    quote_full: { TODO_AUTHOR: 'Konkreter Einsamkeit-Quote-Text — byte-identisch zum Poster. Shopify-Title nutzt „Einsamkeit zeitigt das Originale“ — als Quote-Quelle verifizieren.' },
+    // Multi-variant (A3 + A2). β-strategy — see rilke-geduld-hero-burgundy.
+    format: null,
+    dimensions_cm: null,
     editorial_essay_handle: 'mann-einsamkeit',
     themes: { TODO_AUTHOR: 'Themes finalisieren — Vorschlag: ["Einsamkeit", "Künstler", "Schweigen", "Innenwelt"]' },
   },
   {
     handle: 'silbe-mann-einsamkeit-goldrahmen',
+    product_type: 'edition',
     voice: 'mann',
     work_title: { TODO_AUTHOR: 'Siehe silbe-mann-einsamkeit-hero-charcoal' },
     work_year: { TODO_AUTHOR: 'Siehe silbe-mann-einsamkeit-hero-charcoal' },
     quote_full: { TODO_AUTHOR: 'Siehe silbe-mann-einsamkeit-hero-charcoal' },
-    format: { TODO_AUTHOR: 'Goldrahmen-Edition Format' },
-    dimensions_cm: { TODO_AUTHOR: 'Goldrahmen-Edition Dimensionen' },
+    format: 'A3',
+    dimensions_cm: '29.7 × 42',
     editorial_essay_handle: 'mann-einsamkeit',
     themes: { TODO_AUTHOR: 'Siehe silbe-mann-einsamkeit-hero-charcoal' },
     editorial_notes: 'Goldrahmen-Variante der Hero-Charcoal-Edition. Inhalt identisch, Format/Rahmen unterscheidet sich.',
@@ -136,23 +161,26 @@ export const EDITIONS: readonly SkuManifest[] = [
   // ─── Zweig ─────────────────────────────────────────────────────────────
   {
     handle: 'silbe-zweig-memorial-staubrose',
+    product_type: 'edition',
     voice: 'zweig',
     work_title: { TODO_AUTHOR: 'Memorial-Quote-Quelle — ›Sternstunden der Menschheit‹ (1927), ›Die Welt von Gestern‹ (1942), oder Brief/Essay?' },
     work_year: { TODO_AUTHOR: 'Abhängig von work_title' },
     quote_full: { TODO_AUTHOR: 'Konkreter Memorial-Quote — byte-identisch zum Poster' },
-    format: 'A3',
-    dimensions_cm: '29.7 × 42',
+    // Multi-variant (A3 + A2) confirmed via check-variants. β-strategy.
+    format: null,
+    dimensions_cm: null,
     editorial_essay_handle: 'zweig-memorial',
     themes: { TODO_AUTHOR: 'Themes — Vorschlag: ["Erinnerung", "Wien", "Europa", "Verlust"]' },
   },
   {
     handle: 'silbe-zweig-unbekannte-goldrahmen',
+    product_type: 'edition',
     voice: 'zweig',
     work_title: '›Brief einer Unbekannten‹',
     work_year: 1922,
     quote_full: { TODO_AUTHOR: 'Spezifischer Quote aus ›Brief einer Unbekannten‹ — byte-identisch zum Poster' },
-    format: { TODO_AUTHOR: 'Goldrahmen-Edition Format' },
-    dimensions_cm: { TODO_AUTHOR: 'Goldrahmen-Edition Dimensionen' },
+    format: 'A3',
+    dimensions_cm: '29.7 × 42',
     editorial_essay_handle: 'zweig-unbekannte',
     themes: { TODO_AUTHOR: 'Themes — Vorschlag: ["Liebe", "Brief", "Wien", "Erinnerung", "Verschweigen"]' },
   },
@@ -160,12 +188,13 @@ export const EDITIONS: readonly SkuManifest[] = [
   // ─── Ebner-Eschenbach ─────────────────────────────────────────────────
   {
     handle: 'silbe-ee-aphorismus-goldrahmen',
+    product_type: 'edition',
     voice: 'ebner-eschenbach',
     work_title: '›Aphorismen‹',
     work_year: 1880,
     quote_full: { TODO_AUTHOR: 'Welcher konkrete Aphorismus aus der Sammlung — byte-identisch zum Poster' },
-    format: { TODO_AUTHOR: 'Goldrahmen-Edition Format' },
-    dimensions_cm: { TODO_AUTHOR: 'Goldrahmen-Edition Dimensionen' },
+    format: 'A3',
+    dimensions_cm: '29.7 × 42',
     editorial_essay_handle: 'ebner-eschenbach-aphorismus',
     themes: { TODO_AUTHOR: 'Themes hängen vom gewählten Aphorismus ab' },
   },
@@ -173,6 +202,7 @@ export const EDITIONS: readonly SkuManifest[] = [
   // ─── Postkarten 3er-Sets ──────────────────────────────────────────────
   {
     handle: 'silbe-stempel-rilke-postkarten-3er',
+    product_type: 'postcard_set',
     voice: 'rilke',
     work_title: { TODO_AUTHOR: 'Postkarten-3er-Set — drei separate Quotes pro Karte. work_title-Strategie: gemeinsamer Werk-Titel falls alle aus einem Werk, sonst leer-lassen + Karten-Liste in editorial_notes' },
     work_year: { TODO_AUTHOR: 'Abhängig von work_title-Strategie' },
@@ -185,6 +215,7 @@ export const EDITIONS: readonly SkuManifest[] = [
   },
   {
     handle: 'silbe-stempel-kafka-postkarten-3er',
+    product_type: 'postcard_set',
     voice: 'kafka',
     work_title: { TODO_AUTHOR: 'Siehe silbe-stempel-rilke-postkarten-3er' },
     work_year: { TODO_AUTHOR: 'Siehe silbe-stempel-rilke-postkarten-3er' },
@@ -197,6 +228,7 @@ export const EDITIONS: readonly SkuManifest[] = [
   },
   {
     handle: 'silbe-stempel-zweig-postkarten-3er',
+    product_type: 'postcard_set',
     voice: 'zweig',
     work_title: { TODO_AUTHOR: 'Siehe silbe-stempel-rilke-postkarten-3er' },
     work_year: { TODO_AUTHOR: 'Siehe silbe-stempel-rilke-postkarten-3er' },
@@ -211,12 +243,13 @@ export const EDITIONS: readonly SkuManifest[] = [
   // ─── Bundles (Multi-Voice) ────────────────────────────────────────────
   {
     handle: 'bundle-goldrahmen-trio',
+    product_type: 'bundle',
     voice: null,
     work_title: { TODO_AUTHOR: 'Bundle umfasst 3 Editionen — voice + work-Strategie: leer (bundle-Marker), oder Repräsentativ-Voice für Search/JSON-LD?' },
     work_year: { TODO_AUTHOR: 'Bundle hat kein einzelnes Jahr' },
-    quote_full: { TODO_AUTHOR: 'Bundle hat kein einzelnes Quote — leer, oder kuratierte „Sammlung von ..."-Caption?' },
+    quote_full: { TODO_AUTHOR: 'Bundle hat kein einzelnes Quote — leer, oder kuratierte „Sammlung von …“-Caption?' },
     format: 'Bundle',
-    dimensions_cm: { TODO_AUTHOR: 'Bundle-Dimensionen-Strategie — pro Einzelteil A3, oder „3 × A3"?' },
+    dimensions_cm: { TODO_AUTHOR: 'Bundle-Dimensionen-Strategie — pro Einzelteil A3, oder „3 × A3“?' },
     editorial_essay_handle: { TODO_AUTHOR: 'Bundle braucht eigenen Editorial-Essay? Oder verlinkt zu Einzel-Essays?' },
     themes: { TODO_AUTHOR: 'Aggregierte Themes der 3 Bundle-Editionen' },
     editorial_notes:
@@ -225,6 +258,7 @@ export const EDITIONS: readonly SkuManifest[] = [
   },
   {
     handle: 'bundle-stempel-sammler',
+    product_type: 'bundle',
     voice: null,
     work_title: { TODO_AUTHOR: 'Bundle umfasst mehrere Postkarten-Sets — siehe bundle-goldrahmen-trio' },
     work_year: { TODO_AUTHOR: 'Bundle hat kein einzelnes Jahr' },
@@ -239,6 +273,14 @@ export const EDITIONS: readonly SkuManifest[] = [
   },
 ] as const;
 
-// Whitelist for generateStaticParams. Same source as EDITIONS — derived
-// so the manifest is the single source of truth.
-export const CANONICAL_HANDLES: readonly string[] = EDITIONS.map((e) => e.handle);
+// Whitelist for generateStaticParams. Filters EDITIONS to product_type
+// 'edition' — postcard_set + bundle SKUs need dedicated render templates
+// (Phase 4 follow-ups) and are excluded from Phase 3 PDP whitelist.
+export const CANONICAL_HANDLES: readonly string[] = EDITIONS
+  .filter((e) => e.product_type === 'edition')
+  .map((e) => e.handle);
+
+// Full unfiltered handle list — used by validation scripts and seed-values
+// which still write metafields for non-edition SKUs (the values themselves
+// inform JSON-LD agentic-discovery even when PDP rendering is deferred).
+export const ALL_CANONICAL_HANDLES: readonly string[] = EDITIONS.map((e) => e.handle);
