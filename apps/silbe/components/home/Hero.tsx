@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import { Button } from '@/components/ui/Button';
+import { CapsLabel } from '@/components/primitives/CapsLabel';
 
 export function Hero() {
   return (
@@ -22,19 +23,7 @@ export function Hero() {
         }}
       >
         <div className="silbe-hero-quote" style={{ display: 'grid', gap: '24px' }}>
-          <p
-            style={{
-              fontFamily: 'var(--font-inter), system-ui, sans-serif',
-              fontSize: '11px',
-              fontWeight: 500,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color: 'var(--color-taupe)',
-              margin: 0,
-            }}
-          >
-            Editorial Klassiker · Wien
-          </p>
+          <CapsLabel>Editorial Klassiker · Wien</CapsLabel>
 
           <h1
             lang="de"

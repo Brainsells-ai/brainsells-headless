@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
+import { CapsLabel } from '@/components/primitives/CapsLabel';
 
 const HAIRLINE_DIVIDER = '0.5px solid color-mix(in srgb, var(--color-ink) 15%, transparent)';
 
@@ -46,19 +47,7 @@ export function WerkstattTeaser() {
         </figure>
 
         <div style={{ display: 'grid', gap: '24px', maxWidth: '480px' }}>
-          <p
-            style={{
-              fontFamily: 'var(--font-inter), system-ui, sans-serif',
-              fontSize: '11px',
-              fontWeight: 500,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color: 'var(--color-taupe)',
-              margin: 0,
-            }}
-          >
-            Werkstatt
-          </p>
+          <CapsLabel>Werkstatt</CapsLabel>
           <h2
             style={{
               fontFamily: 'var(--font-cormorant), Georgia, serif',

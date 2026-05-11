@@ -1,3 +1,5 @@
+import { CapsLabel } from '@/components/primitives/CapsLabel';
+
 const ITEMS = [
   {
     label: 'Material',
@@ -43,19 +45,7 @@ export function TrustBar() {
       >
         {ITEMS.map((item) => (
           <li key={item.label} style={{ display: 'grid', gap: '6px' }}>
-            <p
-              style={{
-                fontFamily: 'var(--font-inter), system-ui, sans-serif',
-                fontSize: '11px',
-                fontWeight: 500,
-                letterSpacing: '0.18em',
-                textTransform: 'uppercase',
-                color: 'var(--color-taupe)',
-                margin: 0,
-              }}
-            >
-              {item.label}
-            </p>
+            <CapsLabel>{item.label}</CapsLabel>
             <p
               lang="de"
               style={{

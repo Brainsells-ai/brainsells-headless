@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
+import { CapsLabel } from '@/components/primitives/CapsLabel';
 import { shopifyFetch, SHOPIFY_TAGS } from '@/lib/shopify';
 
 type Money = { amount: string; currencyCode: string };
@@ -106,19 +107,7 @@ export async function FeaturedEditions() {
             justifyItems: 'start',
           }}
         >
-          <p
-            style={{
-              fontFamily: 'var(--font-inter), system-ui, sans-serif',
-              fontSize: '11px',
-              fontWeight: 500,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color: 'var(--color-taupe)',
-              margin: 0,
-            }}
-          >
-            Editionen
-          </p>
+          <CapsLabel>Editionen</CapsLabel>
           <p
             lang="de"
             style={{
@@ -160,19 +149,7 @@ export async function FeaturedEditions() {
         }}
       >
         <header style={{ display: 'grid', gap: '16px', maxWidth: '720px' }}>
-          <p
-            style={{
-              fontFamily: 'var(--font-inter), system-ui, sans-serif',
-              fontSize: '11px',
-              fontWeight: 500,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color: 'var(--color-taupe)',
-              margin: 0,
-            }}
-          >
-            Editionen
-          </p>
+          <CapsLabel>Editionen</CapsLabel>
           <h2
             style={{
               fontFamily: 'var(--font-cormorant), Georgia, serif',

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
+import { CapsLabel } from '@/components/primitives/CapsLabel';
 
 type Stimme = {
   initial: string;
@@ -82,19 +83,7 @@ export function FuenfStimmen() {
         }}
       >
         <header style={{ display: 'grid', gap: '20px', maxWidth: '720px' }}>
-          <p
-            style={{
-              fontFamily: 'var(--font-inter), system-ui, sans-serif',
-              fontSize: '11px',
-              fontWeight: 500,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color: 'var(--color-taupe)',
-              margin: 0,
-            }}
-          >
-            Die SILBE-Auswahl
-          </p>
+          <CapsLabel>Die SILBE-Auswahl</CapsLabel>
           <h2
             style={{
               fontFamily: 'var(--font-cormorant), Georgia, serif',
