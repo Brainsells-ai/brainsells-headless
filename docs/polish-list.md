@@ -73,6 +73,36 @@ Bei Replacement: Liquid-Theme-References prüfen (Header-Logo, Apple-Touch-Icon 
 
 ---
 
+## Commerce
+
+### PDP Multi-Variant „ab"-Preis-Display
+
+- **Owner:** Aleks (editorial decision) + Merlin (executor)
+- **Deferred from:** Phase 3 (`lib/shopify-queries.ts` commit)
+- **Gate:** Vor Phase 8 Cutover
+
+Aktuelles Verhalten: `SummaryProduct.priceRange.min` wird ohne „ab"-Prefix
+angezeigt. Multi-Variant-Editions (A3=39 €, A2=59 €) zeigen nur „39,00 €".
+Das ist Phase-2-Verhalten, bewusst beibehalten — kein visual-regression im
+Phase-3 `shopify-queries`-Commit.
+
+Tech-Fix-Skizze: `SummaryProduct`-Schema um `priceRange.max` erweitern,
+FeaturedEditions / SimilarProducts / etc. nutzen Conditional:
+
+```ts
+{product.priceRange.min.amount === product.priceRange.max.amount
+  ? formatPrice(product.priceRange.min)
+  : `ab ${formatPrice(product.priceRange.min)}`}
+```
+
+**Rechtliche Relevanz:** PAngV-Compliance bei Preisangaben mit Variants.
+Das Auslassen der oberen Grenze ohne „ab"-Prefix ist in Verbraucherrechts-
+Grauzone (untere-Bound-only-Angabe ist erlaubt bei explizitem „ab"; ohne
+Prefix kann es als Festpreis verstanden werden). Sollte vor Cutover gefixt
+sein.
+
+---
+
 ## Layout & components
 
 ### Phase 2 — Footer wordmark HOT 2 Gold variant still in `public/brand/`
