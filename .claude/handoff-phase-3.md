@@ -420,3 +420,30 @@ Phase 4 startet direkt mit Cart-Drawer).
   MEGAPROMPT, makes AddToCartButton stub functional).
 - **Phase-5-Scope** — `/editionen` listing route, `/bibliothek`,
   `/werkstatt`, `/stimmen` (resolves the RSC-Prefetch-404er).
+
+### Was wurde gemerged (post-PR-#12)
+
+PR #12 squash-merged to `main` on 2026-05-12 as `4d1e896`. The
+`phase-3-pdp-implementation` branch collapsed 5 commits:
+
+- `1b0bb93` — editorial-essays payload collection (slug-based,
+  lexical-constrained, pull-quote-group)
+- `0ad3ba3` — pdp components + route (Hero, MaterialSpecs,
+  EditorialEssay, ThemeTags, CrossLinks, Breadcrumbs +
+  AddToCartButton stub + page.tsx + loading.tsx)
+- `ba159fd` — pdp playwright suite + dynamicParams gate (46 tests
+  green, dynamicParams=false makes non-canonical handles 404)
+- `17ccab5` — a11y audit fix + 4 polish entries
+  (.silbe-cart-button:focus-visible)
+- `dc520f0` — handoff-phase-3 session 2026-05-12 + squash-merge-
+  checklist applied
+
+Phase 3 structurally complete — all 8 canonical edition PDPs render
+at `/editionen/[handle]/`. CI green (silbe 4m32s), Vercel preview
+ready, HITL smoke-tests passed.
+
+### Smoke-Tests am Vercel-Preview (2026-05-12, vor Squash-Merge PR #12)
+
+Per Squash-Merge-Checklist §2 + §4 — all routes verified, no findings
+blocking merge. Manual smoke tests passed (Tab-focus on cart-button
+ring visible; preview-renders clean; no DevTools console errors).
