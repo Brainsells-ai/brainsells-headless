@@ -80,6 +80,15 @@ body {
   }
 }
 
+/* PDP AddToCartButton — inline-styled with appearance: none which strips
+   the native focus ring on WebKit/Safari. Restore visible focus via
+   :focus-visible per Web Interface Guidelines (interactive elements need
+   visible focus). */
+.silbe-cart-button:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 4px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

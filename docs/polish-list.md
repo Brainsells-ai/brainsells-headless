@@ -582,6 +582,34 @@ PDP rendert nur Single featured-image im Hero. Multi-Image-Gallery (mehrere Comp
 
 Phase-3-Spec §3.4 Test 2 forderte JSON-LD-Product-Schema-Block für SEO + MCP/UCP-Agent-Read-Path. Deferred — PDP rendert ohne strukturierte-Daten-Block. SEO-Crawler (Google) sehen nur reguläre HTML; Storefront-MCP-Agents lesen direkt Storefront-API (kein PDP-Scrape nötig). JSON-LD-Block ergänzt Discoverability via Web-Search, wichtig vor Cutover.
 
+### Hover-States für interaktive PDP-Elemente
+- **Owner:** Tech
+- **Deferred from:** Phase 3 PDP day-2 web-design-guidelines audit (2026-05-12)
+- **Gate:** Polish-Sprint
+
+Web Interface Guidelines fordern „Buttons/links need :hover state". Aktuell: AddToCartButton (inline-styled, kein hover), Breadcrumbs-Links (no color shift on hover), CrossLinks-Card-Links (no card-lift/underline/border-shift). Visual-Feedback fehlt komplett auf interaktiven PDP-Surfaces. Fix-Skizze: add `:hover` rules zu `.silbe-cart-button`, `.silbe-breadcrumb-link`, `.silbe-related-card-link` in globals.css. Konsistente Hover-Behavior pro Pattern.
+
+### Touch-action manipulation auf interaktive Elemente
+- **Owner:** Tech
+- **Deferred from:** Phase 3 PDP day-2 web-design-guidelines audit (2026-05-12)
+- **Gate:** Polish-Sprint
+
+Web Interface Guidelines: `touch-action: manipulation` verhindert mobile-double-tap-zoom-delay. Aktuell nirgendwo gesetzt (PDP-Buttons, Header-Hamburger, etc.). Fix: globales selector `button, a, [role="button"] { touch-action: manipulation; }` oder explizit pro interaktivem Element.
+
+### Pre-Seed PDP Hero rendert 0 h1 (a11y)
+- **Owner:** Aleks (Editorial) + Tech
+- **Deferred from:** Phase 3 PDP day-2 web-design-guidelines audit (2026-05-12)
+- **Gate:** Wenn Aleks erste quote_full-Metafields seeded
+
+Hero rendert `<h1>` nur wenn `silbe.quote_full` metafield gesetzt. Pre-seed: kein h1 auf der PDP → a11y-Violation („Headings hierarchical h1–h6" → page sollte exakt einen h1 haben). Self-resolving sobald Aleks die Quote-Texte byte-identisch zum Poster pro SKU seeded (~15 distinct TODOs in scripts/metafields-manifest.ts). Kein Code-Fix in Phase 3 — die fallback-Lösung („product.title als h1 wenn quote leer") würde editorial Marketing-Sprache als h1 setzen (vocab §5.1-konflikt).
+
+### Brand-Token taupe-on-cream — Color-Contrast WCAG AA
+- **Owner:** Aleks (Brand)
+- **Deferred from:** Phase 3 PDP day-2 web-design-guidelines audit (2026-05-12)
+- **Gate:** Vor Phase 8 Cutover
+
+`var(--color-taupe)` `#8B7865` auf `var(--color-cream)` `#F2EBDB` hat Contrast-Ratio ~3.5:1. WCAG AA fordert 4.5:1 für normal-size text (<18pt) — fails. Betrifft alle CapsLabels (11px Inter), source-captions (15px Crimson italic), 13px price/caption-meta-text auf PDP + Homepage. Brand-Token-Level concern, nicht PDP-spezifisch. Aleks-Decision: taupe leicht abdunkeln (z.B. `#7A6B5A` für ratio 4.6:1), oder ausschließlich für >18pt/bold large-text-Kontexte einsetzen.
+
 ### EditorialEssays Postgres-Migration auf Production-DB pushen
 - **Owner:** Tech
 - **Deferred from:** Phase 3 PDP day-2 (2026-05-12)

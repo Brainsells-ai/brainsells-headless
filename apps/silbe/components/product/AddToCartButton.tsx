@@ -17,6 +17,7 @@ export function AddToCartButton({ variantId, availableForSale }: AddToCartButton
   return (
     <button
       type="button"
+      className="silbe-cart-button"
       disabled={disabled}
       aria-label={
         disabled
