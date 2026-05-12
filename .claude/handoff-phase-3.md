@@ -256,3 +256,167 @@ Hauptklassen:
 - §3 PDP-Negative — ✅ `/editionen/silbe-rilke-geduld-hero-burgundy`
   rendert Next.js Default 404 (Option b confirmed, Custom-404
   ist Polish-Item)
+
+---
+
+## Session 2026-05-12 — Phase-3 PDP Implementation (PR #12 pre-merge)
+
+### Was in PR #12 ist
+
+4 commits auf `phase-3-pdp-implementation`, ahead of `main` (`a723e76`):
+
+- `1b0bb93` — **EditorialEssays Payload collection.** slug-based primary
+  key (1:N — ein essay serves Hero + Goldrahmen-Variante derselben
+  Edition via shared editorial_essay_handle). Lexical features explicit
+  constrained: italic + link inline, h3/h4 + blockquote + lists + hr
+  blocks. No bold/underline/inline-code. pullQuote als top-level Group
+  field (text + optional source) — keine Lexical-Custom-Blocks. KEIN
+  author/voice field auf der Collection (Voice ist product-property via
+  manifest VOICE_BY_HANDLE; Phase 5 VoiceBios-Collection später).
+  Plus `lib/payload-queries.ts` mit `getEditorialEssayBySlug()` (try/catch
+  um Postgres-table-missing-error abgefangen).
+- `0ad3ba3` — **PDP components + route.** 6 components per DoD (Hero,
+  MaterialSpecs, EditorialEssay-Renderer, ThemeTags, CrossLinks,
+  Breadcrumbs) + AddToCartButton client-island stub + `page.tsx`
+  (generateStaticParams reads CANONICAL_HANDLES manifest, parallel
+  Promise.all fetch product+essay, Suspense around CrossLinks for below-
+  fold streaming) + `loading.tsx` (Hairline placeholder, no spinner).
+  Drei DoD-Drops zu polish-list: MockupCarousel, VariantSelector,
+  ProductJsonLd.
+- `ba159fd` — **PDP Playwright suite + dynamicParams gate.** 23 tests
+  × 2 viewports = 46 green (12 @pdp flagship, 4 @a11y, 8 @pdp-smoke
+  cross-handle, 3 @pdp-negative). Plus `export const dynamicParams =
+  false` auf page.tsx — fixt das Next-16-Default wo non-canonical handles
+  200 statt 404 returnt.
+- `17ccab5` — **a11y audit fix + 4 polish entries.** Critical:
+  `.silbe-cart-button:focus-visible` rule in globals.css restoriert den
+  fokus-ring den `appearance: none` auf WebKit/Safari stripped. Non-
+  critical zu polish-list: Hover-States, touch-action manipulation,
+  pre-seed-0-h1, taupe-on-cream Color-Contrast WCAG AA.
+
+### Architektur-Entscheidungen fixiert in PR #12 (TECH, locked 2026-05-12)
+
+- **EditorialEssays slug-based** — Primary key matches
+  silbe.editorial_essay_handle metafield. 1:N (essay → SKUs). NOT
+  Shopify productHandle.
+- **No author/voice field on EditorialEssays** — voice lives on
+  product (Shopify-metafield + manifest VOICE_BY_HANDLE). Phase 5
+  VoiceBios-Collection separat für editierbare Bio-Content.
+- **Lexical features explicit constrained** — italic + link inline,
+  h3/h4 + blockquote + lists + hr blocks. No bold/underline/strike
+  per SILBE editorial-restraint.
+- **pullQuote als top-level Group, kein Lexical-Custom-Block** — ein
+  pull-quote pro essay, renderer controls placement.
+- **Hero quote-prominent (Titel = Quote)** — H1 ist das Zitat, nicht
+  product.title (Marketing-internal). Pre-seed = 0 h1 (self-resolving
+  durch Aleks-Seed).
+- **Featured-image-only Hero** — single product.images[0] mockup.
+  Multi-Image (MockupCarousel) ist polish-item.
+- **No VariantSelector** — Multi-Variant Hero-SKUs (Rilke, Mann, Zweig
+  memorial) zeigen Standard-Variante (variants[0]). A2 nicht user-
+  wählbar bis VariantSelector kommt (Phase 4 polish).
+- **No ProductJsonLd** — agentic-discovery deferred zu Phase 7/8
+  polish-item.
+- **CrossLinks returns null on empty peers** — β-β decision (no cross-
+  voice BEST_SELLING fallback). Kafka + Ebner-Eschenbach PDPs zeigen
+  keine CrossLinks-Section bis Phase 5–6 peers addet.
+- **dynamicParams = false** — non-canonical handles return clean 404
+  ohne ProductPage-invocation.
+
+### Squash-Merge-Checklist PR #12 (applied template)
+
+Pre-merge gates für PR #12, basierend auf der Template-Section §1–§7
+above.
+
+#### §1 CI green
+Same workflow als PR #11 — Build, Playwright non-snapshot suite,
+content-lint, tsc noEmit alle auf `pull_request` event.
+
+#### §2 Vercel-Preview-Path-Inspection für PR #12
+
+- **`/editionen/silbe-rilke-geduld-hero-burgundy`** — flagship PDP.
+  Pre-seed-state: Breadcrumbs + Hero region (mit "Rainer Maria Rilke"
+  source caption, ohne Quote-H1 weil metafield empty), Featured-image,
+  Material-Specs mit 4 canonical strings + Format „A3 (29.7 × 42 cm)",
+  Editorial-Section mit „Editorial-Kontext folgt."-Placeholder,
+  ThemeTags absent (empty array), CrossLinks absent (no peer-data).
+  Price gerendert in EUR-Format. Add-to-Cart-Button visible mit Vergriffen-
+  state je nach Shopify availability.
+- **`/editionen/silbe-kafka-axt-goldrahmen`** — single-variant SKU.
+  Same structural rendering. Confirms CrossLinks null (Kafka-only-
+  edition) without rendering empty container.
+- **`/editionen/silbe-rilke-geduld-goldrahmen`** — sibling of flagship.
+  Same essay-slug (`rilke-habe-geduld`) → if essay seeded, both
+  PDPs show same essay content. Pre-seed: both show placeholder.
+- **`/editionen/bundle-goldrahmen-trio`** — should be 404 (product_type
+  bundle, excluded from CANONICAL_HANDLES). dynamicParams gate.
+- **`/editionen/rilke-a3-habegeduld`** — should be 404 (legacy SKU
+  outside whitelist). dynamicParams gate.
+
+#### §3 Playwright-Specs gegen Preview (optional)
+
+- `tests/e2e/pdp.spec.ts` — 23 × 2 = 46 tests. @pdp + @a11y + @pdp-smoke
+  + @pdp-negative tags.
+- Plus homepage + layout regression (no PDP changes to homepage but
+  CapsLabel-extraction from Phase-3-prep-PR is now consumed by PDP
+  too).
+
+#### §4 Manuelle Smoke-Tests am Vercel-Preview
+
+- AddToCartButton Tab-Focus: Tab in button, confirm `:focus-visible`
+  ring erscheint (2px ink, 4px offset). Klick-Focus sollte KEIN Ring
+  zeigen (das ist `:focus-visible` semantics, nicht `:focus`).
+- AddToCartButton mobile tap — kein visible 300ms-Delay (touch-action
+  manipulation noch nicht gesetzt — polish-item, accept delay für
+  diese PR).
+- /admin/collections/editorial-essays — Aleks kann jetzt eine essay
+  mit slug `rilke-habe-geduld` anlegen. Lexical-Editor zeigt nur die
+  whitelisted features (italic + link inline; h3/h4 + blockquote +
+  lists + hr blocks). Save → check DB row → re-render
+  `/editionen/silbe-rilke-geduld-hero-burgundy` → essay content erscheint
+  in Editorial-Section. (Funktioniert nur falls Migration auf
+  Production-Postgres durch — sonst getEditorialEssayBySlug returns
+  null → placeholder render.)
+- Browser DevTools Console: kein JavaScript-Error, kein 404 auf static
+  Assets (mockups, brand wordmark, OG cards).
+
+#### §5 Polish-list completeness audit
+
+PR #12 hat polish-list erweitert um:
+- MockupCarousel (Multi-Image Gallery)
+- VariantSelector (A3/A2 Picker)
+- ProductJsonLd (Agentic-Discovery)
+- EditorialEssays Postgres-Migration auf Production
+- Hover-states für interaktive PDP-Elemente
+- touch-action: manipulation
+- Pre-seed PDP Hero rendert 0 h1
+- Brand-Token taupe-on-cream Color-Contrast WCAG AA
+
+Vor Squash-Merge: nochmal alle Phase-3-deferrals durchgehen, ob
+Komplettheit OK.
+
+#### §6 TODO_AUTHOR-marker review status
+
+~15 distinct editorial decisions in `scripts/metafields-manifest.ts`
+unchanged seit 2026-05-11. Status: Aleks-Queue. PDP rendert mit
+Pre-Seed-Fallbacks, blockiert nicht.
+
+#### §7 Phase-3-Status documentation
+
+Nach PR-#12-Merge: dieses Memo wird ergänzt um „Was wurde gemerged"-
+section. Plus: Update `handoff-phase-LATEST.md` Pointer (nach Phase
+abgeschlossen, evtl. Phase 4 startet ggf. mit PR #13 für die noch nicht
+geshipten Phase-3-Items wie EU-Widerruf-Belehrung-Surfaces — oder
+Phase 4 startet direkt mit Cart-Drawer).
+
+### Pending nach PR #12
+
+- **Aleks editorial seeding** der ~15 TODO_AUTHOR-Felder im manifest
+  (blockiert `seed-metafield-values.ts` und damit echte Quote-Renderings
+  auf PDP).
+- **EditorialEssays Postgres-Migration** auf Railway-Production (polish-
+  list-item).
+- **Phase-4-Scope** — Cart-Drawer + Shopify-Cart-Sync (Task #5 from
+  MEGAPROMPT, makes AddToCartButton stub functional).
+- **Phase-5-Scope** — `/editionen` listing route, `/bibliothek`,
+  `/werkstatt`, `/stimmen` (resolves the RSC-Prefetch-404er).
