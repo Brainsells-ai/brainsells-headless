@@ -100,8 +100,8 @@ export function Footer() {
             <h2 style={HEADING_STYLE}>Kontakt</h2>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               <li>
-                <a href="mailto:hallo@silbe.de" style={LINK_STYLE}>
-                  hallo@silbe.de
+                <a href="mailto:hallo@silbe.at" style={LINK_STYLE}>
+                  hallo@silbe.at
                 </a>
               </li>
               <li

@@ -83,7 +83,7 @@ test.describe('footer links', () => {
     }
 
     // Kontakt column.
-    await expect(footer.getByRole('link', { name: 'hallo@silbe.de' })).toBeVisible();
+    await expect(footer.getByRole('link', { name: 'hallo@silbe.at' })).toBeVisible();
     await expect(footer.getByText('Brainsells e.U., Wien')).toBeVisible();
 
     // Copyright corrected to legal entity, not brand. UID lives in
