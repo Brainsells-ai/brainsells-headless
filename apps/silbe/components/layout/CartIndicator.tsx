@@ -1,17 +1,25 @@
-import Link from 'next/link';
+'use client';
+
 import { ShoppingBag } from 'lucide-react';
+import { useCartStore } from '@/lib/cart-store';
 
-type Props = {
-  count?: number;
-};
+// Header cart trigger. Reads totalQuantity from the Zustand store and
+// opens the CartDrawer on click. No /warenkorb route — checkout flow
+// is drawer → Shopify-hosted checkout, no intermediate cart page.
+export function CartIndicator() {
+  const count = useCartStore((s) => s.cart?.totalQuantity ?? 0);
+  const openDrawer = useCartStore((s) => s.openDrawer);
 
-// Server Component — renders the icon + optional badge. The cart store and
-// drawer interactivity arrive in Phase 4; for now `count` is read-only.
-export function CartIndicator({ count = 0 }: Props) {
   return (
-    <Link
-      href="/warenkorb"
-      aria-label={count > 0 ? `Warenkorb (${count} Edition${count === 1 ? '' : 'en'})` : 'Warenkorb (leer)'}
+    <button
+      type="button"
+      onClick={openDrawer}
+      aria-label={
+        count > 0
+          ? `Warenkorb öffnen (${count} Edition${count === 1 ? '' : 'en'})`
+          : 'Warenkorb öffnen (leer)'
+      }
+      className="silbe-cart-button"
       style={{
         position: 'relative',
         display: 'inline-flex',
@@ -19,8 +27,12 @@ export function CartIndicator({ count = 0 }: Props) {
         justifyContent: 'center',
         width: '40px',
         height: '40px',
+        appearance: 'none',
+        background: 'transparent',
+        border: 'none',
+        padding: 0,
         color: 'var(--color-ink)',
-        textDecoration: 'none',
+        cursor: 'pointer',
       }}
     >
       <ShoppingBag size={20} strokeWidth={1.25} aria-hidden />
@@ -48,6 +60,6 @@ export function CartIndicator({ count = 0 }: Props) {
           {count > 99 ? '99+' : count}
         </span>
       )}
-    </Link>
+    </button>
   );
 }
