@@ -5,9 +5,7 @@ import { MobileDrawer } from './MobileDrawer';
 
 const NAV_LINKS = [
   { href: '/editionen', label: 'Editionen' },
-  { href: '/stimmen', label: 'Stimmen' },
-  { href: '/bibliothek', label: 'Bibliothek' },
-  { href: '/werkstatt', label: 'Werkstatt' },
+  { href: '/ueber-uns', label: 'Über uns' },
 ] as const;
 
 export function Header() {

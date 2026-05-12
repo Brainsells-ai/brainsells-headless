@@ -54,6 +54,10 @@ const DEFAULT_EXTENSIONS = new Set(['.ts', '.tsx', '.mdx', '.md']);
 const SELF_EXEMPT = new Set([
   path.join('scripts', 'content-lint.ts'),
   path.join('lib', 'asset-manifest.ts'),
+  // Vendor-API integration: Klaviyo's endpoint path
+  // "profile-subscription-bulk-create-jobs" and JSON field "subscriptions"
+  // are API surface, not user-facing copy.
+  path.join('lib', 'klaviyo.ts'),
 ]);
 
 type Finding = { file: string; line: number; col: number; pattern: string; reason: string; excerpt: string };
