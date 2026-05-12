@@ -686,3 +686,57 @@ Drawer uses a 320ms `cubic-bezier(0,0,0.2,1)` CSS `transform: translateX` transi
 
 When a variant goes out-of-stock while it sits in a customer's cart, `CartLineItem` shows the „Vergriffen" badge and disables the `+` button. Currently no explicit nudge to remove the line — the user can hit „Zur Kasse" with a Vergriffen line in the cart and Shopify checkout will reject it. Polish: inline copy „Diese Edition ist vergriffen — bitte entfernen, um fortzufahren." plus disable the „Zur Kasse" CTA when any line has `availableForSale === false`.
 
+
+
+## Phase 5 — Header / Footer / Navigation (deferrals)
+
+_Added 2026-05-12. Phase-5 ships Header trim, Footer 3-column refit, MobileDrawer restructure, Klaviyo newsletter wiring, /werkstatt → /ueber-uns rename + 301. The items below were scoped out._
+
+### `/ueber-uns` — editorial pass
+- **Owner:** Aleks (Editorial-Copy)
+- **Deferred from:** Phase 5 (2026-05-12)
+- **Gate:** Brand-Editorial-Sprint
+
+Phase 5 ships `/ueber-uns` as a 2-paragraph stub. Final copy needs Aleks-editorial pass — origin story, Wien-Verortung, Editions-Begriff, evtl. ein Stimmen-Statement. Same Cormorant+Crimson typography as PDP. No images in scope yet.
+
+### Rechtsseiten-Content (Impressum / AGB / Datenschutz / Widerrufsrecht / Widerrufsformular / Versand / Cookie-Einstellungen)
+- **Owner:** Aleks + IT-Recht Kanzlei
+- **Deferred from:** Phase 5 (2026-05-12)
+- **Gate:** Legal-Sprint with IT-Recht Kanzlei
+
+Footer + MobileDrawer linken auf 7 flach-strukturierte Rechtsrouten. Keine Routes physisch gebaut → 404 by design bis Legal-Sprint. Content kommt von IT-Recht Kanzlei (Phase-3-handoff polish-list §45). Pfade locked: `/impressum`, `/agb`, `/datenschutz`, `/widerrufsrecht`, `/widerrufsformular`, `/versand`, `/cookie-einstellungen`.
+
+### Cookiebot Integration
+- **Owner:** Tech
+- **Deferred from:** Phase 5 (2026-05-12)
+- **Gate:** Cookiebot-Sprint (separat von Klaviyo, separat von GA4)
+
+Newsletter-Form sammelt Email via Klaviyo. Cookie-Banner + Consent-Management-Plattform kommt separat. Bis dahin: keine GA4, kein Meta Pixel, kein Loox-Tracking — nur die strikt funktional notwendigen First-Party-Cookies.
+
+### Klaviyo Profile-Properties enrichment
+- **Owner:** Tech
+- **Deferred from:** Phase 5 (2026-05-12)
+- **Gate:** Klaviyo-Polish-Sprint
+
+`lib/klaviyo.ts` sendet aktuell nur `email` + `custom_source: silbe.at footer`. Polish: Landing-Page, UTM-Parameter, Referrer, Locale (de-AT vs de-DE) als Profile-Properties anhängen für spätere Segmentierung. Frontend-side: hidden form fields oder Server-Action-Args.
+
+### Newsletter Anti-Spam (Honeypot / hCaptcha)
+- **Owner:** Tech
+- **Deferred from:** Phase 5 (2026-05-12)
+- **Gate:** Wenn Klaviyo Spam-Subscribes meldet (List Hygiene)
+
+`NewsletterForm` hat keinen Honeypot + kein hCaptcha. Klaviyo erkennt offensichtliche Bot-Subscribes selber, aber bei Volumen-Spam hilft ein Honeypot (versteckter Pflicht-Field, Bot füllt aus → reject) als billigste Defense.
+
+### 301-Map vom alten Liquid-Theme
+- **Owner:** Tech (mit SEO-Audit)
+- **Deferred from:** Phase 5 (2026-05-12)
+- **Gate:** Eigener Sprint vor DNS-Switch
+
+Phase 5 fügt nur `/pages/ueber-uns → /ueber-uns` und `/werkstatt → /ueber-uns` als 308-Redirects ein. Komplette Map vom alten Liquid-Theme (alle `/pages/*`, `/blogs/journal/*`, `/products/*` → `/editionen/*`) muss vor DNS-Switch ausgearbeitet werden. Bestehende Redirects in `next.config.ts` Zeilen 14-23 sind nur ein Anfang.
+
+### Listing-Routes `/stimmen` und `/bibliothek`
+- **Owner:** Tech
+- **Deferred from:** Phase 5 (2026-05-12)
+- **Gate:** Phase 7+
+
+MobileDrawer hatte vorher `/stimmen` (Sub-Menü mit 5 Autoren) + `/bibliothek` + `/werkstatt` + `/kontakt` in der Primary-Nav. Phase 5 trimmt das auf Editionen + Über uns. `/stimmen` und `/bibliothek` kommen mit Phase 7+ als eigene Listing-Routes mit Inhalt. Bis dahin: nicht verlinken.

@@ -16,7 +16,8 @@ const nextConfig: NextConfig = {
       { source: '/blogs/journal/:slug*', destination: '/bibliothek/:slug*', permanent: true },
       { source: '/blogs/journal', destination: '/bibliothek', permanent: true },
       { source: '/pages/journal', destination: '/bibliothek', permanent: true },
-      { source: '/pages/ueber-uns', destination: '/werkstatt', permanent: true },
+      { source: '/pages/ueber-uns', destination: '/ueber-uns', permanent: true },
+      { source: '/werkstatt', destination: '/ueber-uns', permanent: true },
       { source: '/pages/autoren', destination: '/stimmen', permanent: true },
       { source: '/pages/widerruf', destination: '/widerrufsrecht', permanent: true },
     ];
