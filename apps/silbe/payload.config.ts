@@ -6,6 +6,7 @@ import { lexicalEditor } from '@payloadcms/richtext-lexical';
 import sharp from 'sharp';
 
 import { Pages } from './collections/Pages';
+import { EditorialEssays } from './collections/EditorialEssays';
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -35,6 +36,7 @@ export default buildConfig({
       fields: [],
     },
     Pages,
+    EditorialEssays,
   ],
   editor: lexicalEditor(),
   db: postgresAdapter({
