@@ -66,9 +66,11 @@ test.describe('footer links', () => {
 
     // Phase 5 footer = 3 columns: Brand+Newsletter / Rechtliches / Kontakt.
     // Rechtliches column carries the 7 canonical legal routes.
-    const widerruf = footer.getByRole('link', { name: 'Widerrufsrecht' });
+    const widerruf = footer.getByRole('link', { name: 'Widerrufsrecht', exact: true });
     await expect(widerruf).toHaveAttribute('href', '/widerrufsrecht');
 
+    // exact:true — NewsletterForm consent line contains a "Datenschutzerklärung"
+    // link which would otherwise substring-match "Datenschutz".
     for (const label of [
       'Impressum',
       'AGB',
@@ -77,7 +79,7 @@ test.describe('footer links', () => {
       'Versand',
       'Cookie-Einstellungen',
     ]) {
-      await expect(footer.getByRole('link', { name: label })).toBeVisible();
+      await expect(footer.getByRole('link', { name: label, exact: true })).toBeVisible();
     }
 
     // Kontakt column.
