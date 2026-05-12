@@ -561,3 +561,10 @@ tatsächlich produktiv genutzt werden (Storefront-Token vs Admin-Token).
 - **Deferred from:** Phase 3 session-close (2026-05-11)
 - **Gate:** Polish-Sprint
 
+### Payload `generate:types` fails on Node 25
+- **Owner:** Tech
+- **Deferred from:** Phase 3 PDP day-2 (2026-05-12)
+- **Gate:** Phase 8 Cutover
+
+Same upstream ESM-interop bug as Phase-1.5b seed-pages: `pnpm payload:generate-types` errors on `ERR_MODULE_NOT_FOUND` for collection imports without explicit `.ts` extensions under Node 25. `apps/silbe/payload-types.ts` never generated. Workaround: inline EditorialEssay type in `lib/payload-queries.ts` with `body: unknown` (lexical isn't a direct dep). Replace with `import type { EditorialEssay } from '../payload-types'` once Node 22 runtime path or upstream fix lands.
+
