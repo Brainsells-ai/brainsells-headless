@@ -561,6 +561,34 @@ tatsächlich produktiv genutzt werden (Storefront-Token vs Admin-Token).
 - **Deferred from:** Phase 3 session-close (2026-05-11)
 - **Gate:** Polish-Sprint
 
+### MockupCarousel — Multi-Image PDP Gallery
+- **Owner:** Tech
+- **Deferred from:** Phase 3 PDP day-2 DoD (2026-05-12)
+- **Gate:** Phase-3.5 Polish oder Phase 6
+
+PDP rendert nur Single featured-image im Hero. Multi-Image-Gallery (mehrere Composite-Mockups pro SKU mit Thumbnails / Carousel-Navigation) ist deferred — siehe Phase-3-Spec §3.3 MockupCarousel-Section für Original-Scope. Asset-mapping.md hat pro SKU 2-3 verfügbare Composites die ungenutzt bleiben.
+
+### VariantSelector — A3/A2 Picker für Multi-Variant SKUs
+- **Owner:** Tech
+- **Deferred from:** Phase 3 PDP day-2 DoD (2026-05-12)
+- **Gate:** Phase 4 (Cart) — wenn Multi-Variant cart-add user-facing wird
+
+3 Hero-SKUs sind Multi-Variant (Rilke-Geduld-Hero-Burgundy, Mann-Einsamkeit-Hero-Charcoal, Zweig-Memorial-Staubrose haben je A3 + A2). PDP rendert ohne Selector → User landet auf Standard-Variante (`variants[0]`, typischerweise A3 weil minVariantPrice). Add-to-Cart greift diese Standard-Variante. A2-Auswahl nicht möglich bis VariantSelector kommt.
+
+### ProductJsonLd — Agentic-Discovery `<script type="application/ld+json">`
+- **Owner:** Tech
+- **Deferred from:** Phase 3 PDP day-2 DoD (2026-05-12)
+- **Gate:** Phase 7 (Agentic-Catalog-Optimization) oder Phase 8 Cutover
+
+Phase-3-Spec §3.4 Test 2 forderte JSON-LD-Product-Schema-Block für SEO + MCP/UCP-Agent-Read-Path. Deferred — PDP rendert ohne strukturierte-Daten-Block. SEO-Crawler (Google) sehen nur reguläre HTML; Storefront-MCP-Agents lesen direkt Storefront-API (kein PDP-Scrape nötig). JSON-LD-Block ergänzt Discoverability via Web-Search, wichtig vor Cutover.
+
+### EditorialEssays Postgres-Migration auf Production-DB pushen
+- **Owner:** Tech
+- **Deferred from:** Phase 3 PDP day-2 (2026-05-12)
+- **Gate:** Vor Phase 8 Cutover (oder wenn Aleks erste essays seeden will)
+
+Production-Railway-Postgres hat noch keine `editorial_essays` Tabelle. Lokal-Build überspringt das via try/catch in `getEditorialEssayBySlug` (returns null on DB error, console.warn loggt). PDP rendert „Editorial-Kontext folgt."-Placeholder statt Essay-Content. Vor Cutover: Payload-Migration auf Production pushen — manuell oder via Phase-1.5b-Bootstrap-Automation. Selbe Gate-Bedingung wie der Admin-User-Bootstrap.
+
 ### Payload `generate:types` fails on Node 25
 - **Owner:** Tech
 - **Deferred from:** Phase 3 PDP day-2 (2026-05-12)

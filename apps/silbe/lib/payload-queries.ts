@@ -35,15 +35,28 @@ export type EditorialEssay = {
 // Fetch one EditorialEssay by slug. The slug matches the
 // silbe.editorial_essay_handle metafield on the Shopify product (1:N —
 // one essay can serve multiple SKUs, e.g. Hero + Goldrahmen variants).
-// Returns null when no essay exists for the slug, which is the
-// expected pre-seed state before Aleks fills the editorial-essays
-// collection. PDP renders an inline placeholder in that case (not 404).
+// Returns null when no essay exists for the slug — the expected
+// pre-seed state. Also returns null on any DB error (e.g.,
+// editorial_essays table not yet migrated to production Postgres):
+// the PDP renders an inline placeholder instead of crashing the build
+// or the page. Migration must run on production Railway-Postgres
+// before essays can populate — polish-list item for production deploy
+// (Payload-Bootstrap-Automation work).
 export async function getEditorialEssayBySlug(slug: string): Promise<EditorialEssay | null> {
-  const payload = await getPayload();
-  const result = await payload.find({
-    collection: 'editorial-essays',
-    where: { slug: { equals: slug } },
-    limit: 1,
-  });
-  return (result.docs[0] as EditorialEssay | undefined) ?? null;
+  try {
+    const payload = await getPayload();
+    const result = await payload.find({
+      collection: 'editorial-essays',
+      where: { slug: { equals: slug } },
+      limit: 1,
+    });
+    return (result.docs[0] as EditorialEssay | undefined) ?? null;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[payload-queries] getEditorialEssayBySlug failed for slug="${slug}". Table may not be migrated yet. Returning null.`,
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
 }
