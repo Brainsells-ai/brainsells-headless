@@ -30,13 +30,15 @@ test.describe('mobile drawer', () => {
     const close = dialog.getByRole('button', { name: 'Navigation schließen' });
     await expect(close).toBeFocused();
 
-    // Stimmen disclosure toggles. Scope to the dialog because the same
-    // author names also appear in the Footer's Stimmen column.
-    const stimmenToggle = dialog.getByRole('button', { name: /^Stimmen$/ });
-    await expect(stimmenToggle).toHaveAttribute('aria-expanded', 'false');
-    await stimmenToggle.click();
-    await expect(stimmenToggle).toHaveAttribute('aria-expanded', 'true');
-    await expect(dialog.getByRole('link', { name: 'Rainer Maria Rilke' })).toBeVisible();
+    // Phase 5 primary links: Editionen + Über uns. No Stimmen disclosure,
+    // no Bibliothek / Werkstatt / Kontakt in primary nav.
+    await expect(dialog.getByRole('link', { name: 'Editionen' })).toBeVisible();
+    await expect(dialog.getByRole('link', { name: 'Über uns' })).toBeVisible();
+
+    // Phase 5 secondary Rechtliches block (smaller typography below
+    // the primary links).
+    await expect(dialog.getByRole('link', { name: 'Impressum' })).toBeVisible();
+    await expect(dialog.getByRole('link', { name: 'Widerrufsrecht' })).toBeVisible();
 
     // ESC closes the drawer and returns focus to the trigger.
     await page.keyboard.press('Escape');
@@ -62,40 +64,63 @@ test.describe('footer links', () => {
     const footer = page.getByRole('contentinfo');
     await expect(footer).toBeVisible();
 
-    // Pflicht (per docs/vocabulary.md §2): /widerrufsrecht (NOT /widerruf).
+    // Phase 5 footer = 3 columns: Brand+Newsletter / Rechtliches / Kontakt.
+    // Rechtliches column carries the 7 canonical legal routes.
     const widerruf = footer.getByRole('link', { name: 'Widerrufsrecht' });
     await expect(widerruf).toHaveAttribute('href', '/widerrufsrecht');
 
-    // /editionen replaces /collections/alle-werke.
-    const editionen = footer.getByRole('link', { name: 'Alle Editionen' });
-    await expect(editionen).toHaveAttribute('href', '/editionen');
+    for (const label of [
+      'Impressum',
+      'AGB',
+      'Datenschutz',
+      'Widerrufsformular',
+      'Versand',
+      'Cookie-Einstellungen',
+    ]) {
+      await expect(footer.getByRole('link', { name: label })).toBeVisible();
+    }
 
-    // No deprecated old-Liquid routes anywhere in the footer.
+    // Kontakt column.
+    await expect(footer.getByRole('link', { name: 'hallo@silbe.de' })).toBeVisible();
+    await expect(footer.getByText('Brainsells e.U., Wien')).toBeVisible();
+
+    // Copyright corrected to legal entity, not brand. UID lives in
+    // Impressum, not the footer bottom-bar.
+    await expect(footer.getByText('© 2026 Brainsells e.U. · Wien')).toBeVisible();
+
+    // Phase 5 tagline (shortened from manifest block).
+    await expect(
+      footer.getByText('Wir sehen die Edition als die kleinste Form eines Verlags.'),
+    ).toBeVisible();
+
+    // Newsletter form ("Briefe von SILBE") mounted in the brand column.
+    await expect(footer.getByText('Briefe von SILBE')).toBeVisible();
+    await expect(footer.getByRole('heading', { name: 'Kein Newsletter. Ein Brief.' })).toBeVisible();
+
+    // No deprecated old-Liquid routes and no Phase-5-removed paths.
+    // /werkstatt was renamed to /ueber-uns; /stimmen + /bibliothek are
+    // Phase-7+ surfaces, not yet linked.
     const html = await footer.innerHTML();
     expect(html).not.toContain('/collections/alle-werke');
     expect(html).not.toContain('/blogs/journal');
     expect(html).not.toContain('/pages/ueber-uns');
     expect(html).not.toContain('/pages/autoren');
+    expect(html).not.toContain('href="/werkstatt"');
+    expect(html).not.toContain('href="/stimmen"');
+    expect(html).not.toContain('href="/bibliothek"');
     expect(html).not.toMatch(/\/widerruf(?!s)/); // matches /widerruf but not /widerrufsrecht/widerrufsformular
-
-    // Five voices present, in the canonical naming.
-    for (const name of [
-      'Rainer Maria Rilke',
-      'Franz Kafka',
-      'Thomas Mann',
-      'Stefan Zweig',
-      'Marie von Ebner-Eschenbach',
-    ]) {
-      await expect(footer.getByRole('link', { name })).toBeVisible();
-    }
   });
 });
 
 test.describe('redirects', () => {
-  test('old liquid routes 301 to new equivalents', async ({ request }) => {
+  test('old liquid routes 308 to new equivalents', async ({ request }) => {
     const cases = [
       { from: '/collections/alle-werke', to: '/editionen' },
-      { from: '/pages/ueber-uns', to: '/werkstatt' },
+      // Phase 5: /pages/ueber-uns now targets /ueber-uns (was /werkstatt
+      // pre-Phase-5; the /werkstatt route itself was renamed).
+      { from: '/pages/ueber-uns', to: '/ueber-uns' },
+      // Phase 5: /werkstatt was renamed to /ueber-uns.
+      { from: '/werkstatt', to: '/ueber-uns' },
       { from: '/pages/autoren', to: '/stimmen' },
       { from: '/pages/widerruf', to: '/widerrufsrecht' },
       { from: '/pages/journal', to: '/bibliothek' },
