@@ -13,6 +13,15 @@ import { CrossLinks } from '@/components/product/CrossLinks';
 
 export const revalidate = 3600;
 
+// Lock dynamic rendering off — only the 8 handles from generateStaticParams
+// (CANONICAL_HANDLES via manifest) get rendered. Any other handle (legacy
+// SKUs, bundles, postcards, fake handles) returns a clean 404 from the
+// Next router without invoking ProductPage / notFound(). Without this,
+// Next 16 defaults to dynamicParams=true and serves the default
+// not-found page with status 200, which breaks the negative-test
+// contract in tests/e2e/pdp.spec.ts.
+export const dynamicParams = false;
+
 export async function generateStaticParams() {
   const handles = await getAllProductHandles();
   return handles.map((handle) => ({ handle }));
