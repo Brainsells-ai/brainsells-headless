@@ -624,3 +624,65 @@ Production-Railway-Postgres hat noch keine `editorial_essays` Tabelle. Lokal-Bui
 
 Same upstream ESM-interop bug as Phase-1.5b seed-pages: `pnpm payload:generate-types` errors on `ERR_MODULE_NOT_FOUND` for collection imports without explicit `.ts` extensions under Node 25. `apps/silbe/payload-types.ts` never generated. Workaround: inline EditorialEssay type in `lib/payload-queries.ts` with `body: unknown` (lexical isn't a direct dep). Replace with `import type { EditorialEssay } from '../payload-types'` once Node 22 runtime path or upstream fix lands.
 
+## Phase 4 deferrals
+
+### Hero `formatPrice` → consume `components/cart/format.ts`
+- **Owner:** Tech
+- **Deferred from:** Phase 4 cart-drawer (2026-05-12)
+- **Gate:** Polish-Sprint
+
+`components/cart/format.ts` exposes the locale-pinned `Intl.NumberFormat('de-DE', currency)` helper. `components/product/Hero.tsx` carries a byte-identical local copy. Refactor Hero to import the shared helper. Kept out of Phase-4 blast radius (atomic drawer commit); trivial follow-up.
+
+### Playwright e2e suite for cart-drawer golden path
+- **Owner:** Tech
+- **Deferred from:** Phase 4 cart-drawer (2026-05-12)
+- **Gate:** Vor Phase 8 Cutover
+
+Phase 4 shipped with `scripts/smoke-cart-api.ts` (live API round-trip) + a manual Playwright-MCP smoke (add → drawer → qty+ → Esc → reopen → Entfernen → empty-state). No formal `tests/e2e/cart.spec.ts` yet. Polish: codify the golden path + edge cases (CartUserError surfacing, expired-cart hydration, Vergriffen-line in cart, multi-line cart visual). Tag `@cart` and `@cart-a11y` (focus-trap, Esc, aria-modal verified by axe).
+
+### Optimistic qty-update with rollback
+- **Owner:** Tech
+- **Deferred from:** Phase 4 cart-drawer (2026-05-12)
+- **Gate:** Polish-Sprint (or when perceived latency complaint surfaces)
+
+Every cart mutation currently waits for the Shopify Storefront round-trip before the UI updates (typical 200–600ms). Polish: optimistic store update with rollback if Shopify throws `CartUserError` or network error. Subtle UX win; not required for Phase 4 DoD.
+
+### Toast / inline error styling refinement
+- **Owner:** Aleks (Editorial-Copy) + Tech
+- **Deferred from:** Phase 4 cart-drawer (2026-05-12)
+- **Gate:** Polish-Sprint
+
+Cart-store errors (`CartUserError`, network) currently surface as a hairline burgundy strip above the drawer footer with a `×` dismiss. Functional but minimal. Polish: editorial copy for the common cases (variant out-of-stock mid-add, cart expired during checkout, network down), considered surface design (toast vs inline vs banner), and a Klasse-2 vocab review.
+
+### Hardcoded €39 free-ship threshold → config
+- **Owner:** Tech (mit Aleks-Confirm für Werte)
+- **Deferred from:** Phase 4 cart-drawer (2026-05-12)
+- **Gate:** Phase 5 (CH-Geo-Detection lands)
+
+`components/cart/FreeShipBar.tsx` carries `const THRESHOLD = 39.0` as a literal. Phase-5 adds CH-€69 with geo-detection, so the threshold becomes a zone-keyed lookup. Move into `lib/constants/shipping.ts` (or similar) with `{ DE: 39, AT: 39, CH: 69 }` shape, and `SURFACE_COPY.free_shipping_threshold` canonical strings (was removed in Klasse-2 review per `scripts/metafields-manifest.ts` SURFACE_COPY comment — add back with the zone-keyed shape).
+
+### `/warenkorb` route — placeholder cleanup
+- **Owner:** Tech
+- **Deferred from:** Phase 4 cart-drawer (2026-05-12)
+- **Gate:** Phase 5 (when `not-found.tsx` + custom 404 lands)
+
+Phase 4 deprecates the `/warenkorb` route: checkout flow is drawer → Shopify-hosted checkout, no intermediate cart page. `CartIndicator` was the only link to `/warenkorb` and now opens the drawer instead. The route itself doesn't exist (returns Next default 404). Two options:
+- (a) Add a `permanentRedirect('/')` route handler so any external bookmarks land on home (drawer can self-open if `?cart=open` query param wired).
+- (b) Wire `/warenkorb` to render the EmptyCart-style page so users with the URL bookmarked still see editorial framing.
+
+Either fine; (a) is one line, (b) is editorial polish. Resolves alongside the Custom-404 polish item from Phase 0.
+
+### `framer-motion` drawer transition (only if CSS feels stiff)
+- **Owner:** Tech
+- **Deferred from:** Phase 4 cart-drawer (2026-05-12)
+- **Gate:** When real-device testing surfaces a complaint
+
+Drawer uses a 320ms `cubic-bezier(0,0,0.2,1)` CSS `transform: translateX` transition. No animation library imported. If real-device QA (lower-end Android, older iOS) shows jank or the transition feels editorial-soft enough on desktop but flat on mobile, swap in framer-motion with spring physics. Keep CSS-only as the default to avoid bundle-size cost for a single component.
+
+### Cart-line `availableForSale=false` — explicit removal nudge
+- **Owner:** Aleks (Editorial-Copy) + Tech
+- **Deferred from:** Phase 4 cart-drawer (2026-05-12)
+- **Gate:** Polish-Sprint
+
+When a variant goes out-of-stock while it sits in a customer's cart, `CartLineItem` shows the „Vergriffen" badge and disables the `+` button. Currently no explicit nudge to remove the line — the user can hit „Zur Kasse" with a Vergriffen line in the cart and Shopify checkout will reject it. Polish: inline copy „Diese Edition ist vergriffen — bitte entfernen, um fortzufahren." plus disable the „Zur Kasse" CTA when any line has `availableForSale === false`.
+

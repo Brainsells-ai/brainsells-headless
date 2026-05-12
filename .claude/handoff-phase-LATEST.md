@@ -3,11 +3,12 @@
 This file always points to the most recent phase memo. Read it at the
 start of any new Claude Code session to know where the project is.
 
-**Current latest:** [handoff-phase-3.md](./handoff-phase-3.md) — Phase 3
-(PDP), merged 2026-05-12.
+**Current latest:** [handoff-phase-4.md](./handoff-phase-4.md) — Phase 4
+(Cart-Drawer + Checkout-Redirect), merged 2026-05-12.
 
 | Phase | Memo | PR | Merge commit | Status |
 |---|---|---|---|---|
+| 4 — Cart-Drawer + Checkout-Redirect | [handoff-phase-4.md](./handoff-phase-4.md) | #13 | `3ed3ae3` | ✅ merged |
 | 3 — PDP implementation | [handoff-phase-3.md](./handoff-phase-3.md) | #12 | `4d1e896` | ✅ merged |
 | 3 — Prep infrastructure | [handoff-phase-3.md](./handoff-phase-3.md) | #11 | `7d46f0c` | ✅ merged |
 | 2 — Homepage | [handoff-phase-2.md](./handoff-phase-2.md) | #5 | `c6c679e` | ✅ merged |
