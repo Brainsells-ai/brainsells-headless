@@ -1,8 +1,10 @@
 import Image from 'next/image';
+import { Suspense } from 'react';
 import { CapsLabel } from '@/components/primitives/CapsLabel';
 import { VOICE_FULL_NAMES } from '@/lib/constants/voices';
 import type { ParsedProduct } from '@/lib/shopify-queries';
 import { AddToCartButton } from './AddToCartButton';
+import { VariantSelector } from './VariantSelector';
 
 // PDP Hero — quote-prominent editorial framing. The quote IS the
 // product (vocab §1, Werteanker). product.title from Shopify is
@@ -129,31 +131,45 @@ export function Hero({ product }: HeroProps) {
           </figure>
         )}
 
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '24px',
-            alignItems: 'baseline',
-            marginTop: '8px',
-          }}
-        >
-          <p
-            style={{
-              fontFamily: 'var(--font-inter), system-ui, sans-serif',
-              fontSize: '18px',
-              fontWeight: 500,
-              letterSpacing: '0.01em',
-              color: 'var(--color-ink)',
-              margin: 0,
-            }}
+        {/* Variant + price + cart island. Wrapped in <Suspense> because
+            VariantSelector uses useSearchParams, which would otherwise
+            opt the entire PDP out of static rendering. Suspense fallback
+            mirrors the default-variant price + cart so the SSR'd HTML
+            renders meaningfully before hydration. */}
+        <div style={{ marginTop: '8px' }}>
+          <Suspense
+            fallback={
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '24px',
+                  alignItems: 'baseline',
+                }}
+              >
+                <p
+                  style={{
+                    fontFamily: 'var(--font-inter), system-ui, sans-serif',
+                    fontSize: '18px',
+                    fontWeight: 500,
+                    letterSpacing: '0.01em',
+                    color: 'var(--color-ink)',
+                    margin: 0,
+                  }}
+                >
+                  {formatPrice(defaultVariant?.price ?? product.priceRange.min)}
+                </p>
+                <AddToCartButton
+                  variantId={defaultVariant?.id}
+                  availableForSale={
+                    defaultVariant?.availableForSale ?? product.availableForSale
+                  }
+                />
+              </div>
+            }
           >
-            {formatPrice(product.priceRange.min)}
-          </p>
-          <AddToCartButton
-            variantId={defaultVariant?.id}
-            availableForSale={product.availableForSale}
-          />
+            <VariantSelector variants={product.variants} />
+          </Suspense>
         </div>
 
         {/* EU-Widerrufsrecht-Hinweis ab 2026-06-19 Pflicht. Vereinfachte
