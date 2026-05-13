@@ -26,7 +26,7 @@ this must be resolved before), and the actual finding.
 
 
 
-### Custom 404-Page mit SILBE-Branding
+### Custom 404-Page mit SILBE-Branding ✅ RESOLVED 2026-05-13 (Phase 6 P1, PR #18)
 
 
 
@@ -568,7 +568,7 @@ tatsächlich produktiv genutzt werden (Storefront-Token vs Admin-Token).
 
 PDP rendert nur Single featured-image im Hero. Multi-Image-Gallery (mehrere Composite-Mockups pro SKU mit Thumbnails / Carousel-Navigation) ist deferred — siehe Phase-3-Spec §3.3 MockupCarousel-Section für Original-Scope. Asset-mapping.md hat pro SKU 2-3 verfügbare Composites die ungenutzt bleiben.
 
-### VariantSelector — A3/A2 Picker für Multi-Variant SKUs
+### VariantSelector — A3/A2 Picker für Multi-Variant SKUs ✅ RESOLVED 2026-05-13 (Phase 6 P3, PR #20)
 - **Owner:** Tech
 - **Deferred from:** Phase 3 PDP day-2 DoD (2026-05-12)
 - **Gate:** Phase 4 (Cart) — wenn Multi-Variant cart-add user-facing wird
@@ -740,3 +740,58 @@ Phase 5 fügt nur `/pages/ueber-uns → /ueber-uns` und `/werkstatt → /ueber-u
 - **Gate:** Phase 7+
 
 MobileDrawer hatte vorher `/stimmen` (Sub-Menü mit 5 Autoren) + `/bibliothek` + `/werkstatt` + `/kontakt` in der Primary-Nav. Phase 5 trimmt das auf Editionen + Über uns. `/stimmen` und `/bibliothek` kommen mit Phase 7+ als eigene Listing-Routes mit Inhalt. Bis dahin: nicht verlinken.
+
+---
+
+## Phase 6 — `not-found` / `/editionen` / `VariantSelector` (deferrals)
+
+_Added 2026-05-13. Phase-6 ships SILBE-branded `not-found.tsx` + `/[...notFound]` catch-all (PR #18), `/editionen` listing route + `getAllEditionsSummary()` (PR #19), and `VariantSelector` PDP island with A3/A2 picker + URL-state (PR #20). The items below were scoped out._
+
+### VariantSelector deep-link hydration flash
+- **Owner:** Tech
+- **Deferred from:** Phase 6 (2026-05-13)
+- **Gate:** Brand-Polish-Sprint oder vor Marketing-Push der per-Variant-URLs verlinkt
+
+User die `/editionen/silbe-rilke-geduld-hero-burgundy?variant=A2` direkt öffnen (Marketing-Link, Bookmark, Share) sehen A3 (SSR-Fallback) für ~50–200 ms bevor Client-Hydration auf A2 swappt. `useSearchParams` ist client-only — SSR-Pfad weiß nicht welche Variant der User will. Eliminator: Cookie- oder Header-basierte Variant-Resolution + dynamic-PDP, würde aber die PDPs aus pure SSG pullen (Lighthouse-Hit). Akzeptable Interim-UX; sharable URLs work correctly nach Hydration.
+
+### `formatPrice` Duplikation across 4 Callsites
+- **Owner:** Tech
+- **Deferred from:** Phase 6 (2026-05-13)
+- **Gate:** Cleanup-Sprint (jederzeit, keine User-Impact)
+
+Selbe `formatPrice(money)`-Funktion (Intl.NumberFormat 'de-DE' EUR, 2 Decimal-Digits) ist in `components/product/Hero.tsx`, `components/home/FeaturedEditions.tsx`, `app/(frontend)/editionen/page.tsx`, und `components/product/VariantSelector.tsx` dupliziert. Polish: nach `lib/format.ts` extract, alle 4 Callsites umstellen. Currency-Currency-Code würde aus Money kommen, ist heute überall EUR, also de-DE-Hardcode ist OK.
+
+### Stale `.next/dev/types/validator.ts` über Branch-Switches
+- **Owner:** Tech (oder Next.js-Upstream-Bug)
+- **Deferred from:** Phase 6 (2026-05-13)
+- **Gate:** Wenn Next.js-Turbopack Cache-Invalidation auf Branch-Switch fixt — sonst dauerhafter Workaround
+
+Wenn man zwischen Branches mit unterschiedlichen Route-Sets switcht (z.B. P1-Branch mit `[...notFound]/page.tsx` vs P2-Branch ohne), persistiert `.next/dev/types/validator.ts` Phantom-References auf nicht-mehr-existente Files. Folge: `pnpm exec tsc --noEmit` und `pnpm build` failen mit `Cannot find module '../../../app/(frontend)/[...notFound]/page.js'`. Workaround: `Remove-Item -Recurse -Force '.next'` (PowerShell) oder `rm -rf .next` zwischen Branch-Switches. Polish-Lessen für nächste stacked-PR-Sprints.
+
+### Variant-aware Metadata / OG / JSON-LD on PDP
+- **Owner:** Tech
+- **Deferred from:** Phase 6 (2026-05-13)
+- **Gate:** SEO-Polish-Sprint oder vor Cutover (Phase 8)
+
+`generateMetadata` in `app/(frontend)/editionen/[handle]/page.tsx` ignoriert `?variant=` — Title, Description, OG-Image sind product-level, nicht variant-level. Folge: Shared `?variant=A2`-URLs zeigen in Slack/WhatsApp/Twitter immer A3-Preview. Polish: searchParams in `generateMetadata` lesen + variant-spezifische Title-Suffix („A2") + variant-spezifisches Preis-Tag. JSON-LD ist eh noch deferred (Phase-3-polish-item).
+
+### Multi-Option-Support beyond `Format`
+- **Owner:** Tech
+- **Deferred from:** Phase 6 (2026-05-13)
+- **Gate:** Wenn ein Edition-SKU eine zweite Option kriegt (Color, Frame, Paper)
+
+`VariantSelector.findFormatOption` ist hardcoded auf `o.name.toLowerCase() === 'format'`. Aktuell haben alle Multi-Variant-Editions nur die Format-Option (A3 / A2). Wenn z.B. Goldrahmen-Editions eine Frame-Color-Option kriegen (gold / silber), bräuchte der Selector eine Generalisierung: pro Option ein Fieldset rendern, URL-Param wird `?format=A3&color=gold` etc. Polish wenn der Bedarf real wird.
+
+### ISR-Tagging für `/editionen` pro Edition
+- **Owner:** Tech
+- **Deferred from:** Phase 6 (2026-05-13)
+- **Gate:** Wenn Catalog über ~50 Editionen wächst und full-flush zu teuer wird
+
+`getAllEditionsSummary()` taggt mit `[SHOPIFY_TAGS.products]` — jeder Product-Update invalidiert die gesamte Listing-Cache. Bei 8 Editionen unproblematisch. Polish bei größerem Katalog: per-handle-tags emittieren damit nur die geänderte Edition den Listing-Cache invalidiert.
+
+### `getFeaturedEditions()` returnt `formatOptions` ungenutzt auf Homepage
+- **Owner:** Tech
+- **Deferred from:** Phase 6 (2026-05-13)
+- **Gate:** Wenn die Homepage Format-Hint zeigen soll — sonst nicht zwingend
+
+`SummaryProduct.formatOptions` wurde in Phase 6 P2 zugefügt. `FeaturedEditions` konsumiert den Type und kriegt das Feld implizit, rendert aber keinen Format-Hint. Minimaler GraphQL-Payload-Overhead (4 Items × 1 Option-Liste). Kein Bug; entweder Homepage zeigt den Hint analog zum Listing, oder das Feld bleibt ungenutzt-aber-available auf der Homepage.

@@ -3,11 +3,12 @@
 This file always points to the most recent phase memo. Read it at the
 start of any new Claude Code session to know where the project is.
 
-**Current latest:** [handoff-phase-5.md](./handoff-phase-5.md) — Phase 5
-(Header · Footer · Navigation · Klaviyo), closed 2026-05-12.
+**Current latest:** [handoff-phase-6.md](./handoff-phase-6.md) — Phase 6
+(`not-found` · `/editionen` · `VariantSelector`), closed 2026-05-13.
 
 | Phase | Memo | PR | Merge commit | Status |
 |---|---|---|---|---|
+| 6 — `not-found` · `/editionen` · `VariantSelector` | [handoff-phase-6.md](./handoff-phase-6.md) | #18, #19, #20 | tbd | ⏳ open (3 PRs, all CI green) |
 | 5 — Header / Footer / Navigation + Klaviyo | [handoff-phase-5.md](./handoff-phase-5.md) | #14, #15, #16, #17 | `a0c6a06` | ✅ merged (4 PRs) |
 | 4 — Cart-Drawer + Checkout-Redirect | [handoff-phase-4.md](./handoff-phase-4.md) | #13 | `3ed3ae3` | ✅ merged |
 | 3 — PDP implementation | [handoff-phase-3.md](./handoff-phase-3.md) | #12 | `4d1e896` | ✅ merged |
