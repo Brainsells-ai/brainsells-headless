@@ -61,12 +61,18 @@ type ShopifyProductDetailRaw = {
   metafields: ShopifyMetafieldRaw[];
 };
 
+type ShopifyProductOptionRaw = {
+  name: string;
+  values: string[];
+};
+
 type ShopifyProductSummaryRaw = {
   id: string;
   handle: string;
   title: string;
   priceRange: { minVariantPrice: Money };
   featuredImage: ShopifyImage | null;
+  options: ShopifyProductOptionRaw[];
 };
 
 // ─── Public Types ──────────────────────────────────────────────────────────
@@ -106,6 +112,13 @@ export type SummaryProduct = {
   title: string;
   priceRange: { min: Money };
   featuredImage: ShopifyImage | null;
+  // Values of the Shopify "Format" option (e.g. ['A3', 'A2'] for hero
+  // multi-variant, ['A3'] for single-variant Goldrahmen, [] when no Format
+  // option exists). Drives the variant-hint label on listing cards. Strings
+  // are surfaced verbatim from Shopify — variant labels include dimensions
+  // (e.g. "A3 (29.7 × 42 cm)"); callers may strip the parenthetical for
+  // compact display.
+  formatOptions: string[];
 };
 
 // ─── Metafield Identifier Set ──────────────────────────────────────────────
@@ -178,6 +191,7 @@ const PRODUCT_SUMMARY_FRAGMENT = /* GraphQL */ `
     title
     priceRange { minVariantPrice { amount currencyCode } }
     featuredImage { url altText width height }
+    options { name values }
   }
 `;
 
@@ -210,6 +224,13 @@ const BEST_SELLING_SUMMARY_QUERY = /* GraphQL */ `
   ${PRODUCT_SUMMARY_FRAGMENT}
   query BestSellingSummary {
     products(first: 4, sortKey: BEST_SELLING) { nodes { ...ProductSummary } }
+  }
+`;
+
+const ALL_EDITIONS_SUMMARY_QUERY = /* GraphQL */ `
+  ${PRODUCT_SUMMARY_FRAGMENT}
+  query AllEditionsSummary {
+    products(first: 50, sortKey: TITLE) { nodes { ...ProductSummary } }
   }
 `;
 
@@ -303,12 +324,16 @@ function parseProduct(raw: ShopifyProductDetailRaw): ParsedProduct {
 }
 
 function toSummary(raw: ShopifyProductSummaryRaw): SummaryProduct {
+  const formatOption = raw.options.find(
+    (o) => o.name.toLowerCase() === 'format',
+  );
   return {
     id: raw.id,
     handle: raw.handle,
     title: raw.title,
     priceRange: { min: raw.priceRange.minVariantPrice },
     featuredImage: raw.featuredImage,
+    formatOptions: formatOption?.values ?? [],
   };
 }
 
@@ -379,6 +404,32 @@ export async function getRelatedProductsByVoice(
   assertCanonicalVoice(voice);
   const peers = await getProductsByVoice(voice);
   return peers.filter((p) => p.handle !== excludeHandle).slice(0, limit);
+}
+
+// Listing route /editionen — all canonical edition SKUs, ordered by the
+// EDITIONS manifest position (editorial order). Fetches 50 via TITLE sort
+// (Shopify-side determinism), then filters to CANONICAL_HANDLES (defense
+// against catalog drift / non-edition product_types) and re-sorts by
+// manifest index. Returns SummaryProduct[] — caller renders the grid.
+export async function getAllEditionsSummary(): Promise<SummaryProduct[]> {
+  const data = await shopifyFetch<{
+    products: { nodes: ShopifyProductSummaryRaw[] };
+  }>(ALL_EDITIONS_SUMMARY_QUERY, undefined, {
+    tags: [SHOPIFY_TAGS.products],
+  });
+
+  const summaries = data.products.nodes
+    .filter((p) => CANONICAL_HANDLES.includes(p.handle))
+    .map(toSummary);
+
+  const orderIndex = new Map<string, number>(
+    CANONICAL_HANDLES.map((h, i) => [h, i]),
+  );
+  return summaries.sort(
+    (a, b) =>
+      (orderIndex.get(a.handle) ?? Number.MAX_SAFE_INTEGER) -
+      (orderIndex.get(b.handle) ?? Number.MAX_SAFE_INTEGER),
+  );
 }
 
 // Homepage Featured-Editions: curated 'featured' collection, with
