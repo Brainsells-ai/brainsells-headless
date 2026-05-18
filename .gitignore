@@ -39,3 +39,10 @@ yarn-error.log*
 
 # Claude Code local settings (per-user, not for tracking)
 .claude/settings.local.json
+
+# Cursor / Claude-Code Workspace (nicht ins Repo)
+apps/silbe/.claude/
+.claude/
+
+# SILBE Session-Handover-Docs (gehoeren ins Brain-Repo)
+silbe-r8-handover-*.md
