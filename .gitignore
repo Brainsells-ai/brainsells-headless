@@ -46,3 +46,6 @@ apps/silbe/.claude/
 
 # SILBE Session-Handover-Docs (gehoeren ins Brain-Repo)
 silbe-r8-handover-*.md
+
+# Playwright MCP scratch outputs (snapshots, console logs)
+.playwright-mcp/

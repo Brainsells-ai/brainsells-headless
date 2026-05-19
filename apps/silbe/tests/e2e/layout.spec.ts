@@ -90,9 +90,11 @@ test.describe('footer links', () => {
     // Impressum, not the footer bottom-bar.
     await expect(footer.getByText('© 2026 Brainsells e.U. · Wien')).toBeVisible();
 
-    // Phase 5 tagline (shortened from manifest block).
+    // R8 Wordmark-Fix (Phase 8): replaces Phase-5 tagline.
     await expect(
-      footer.getByText('Wir sehen die Edition als die kleinste Form eines Verlags.'),
+      footer.getByText(
+        'SILBE versammelt Zeilen aus dem literarischen Kanon — jede mit ihrer Quelle.',
+      ),
     ).toBeVisible();
 
     // Newsletter form ("Briefe von SILBE") mounted in the brand column.

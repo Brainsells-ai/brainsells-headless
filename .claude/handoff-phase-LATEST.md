@@ -6,9 +6,106 @@ The active phase lives inline below; prior phases are tracked in the table.
 
 ---
 
-## Current phase — 7 · Legal Pages
+## Current phase — 8 · R8 Homepage
 
-**Branch:** `phase-7-legal-pages` · **PR:** [#22](https://github.com/Brainsells-ai/brainsells-headless/pull/22) · **Status:** open, all gates green · **Opened:** 2026-05-13.
+**Branch:** `feat/r8-homepage` · **PR:** tbd · **Status:** open, all gates green · **Opened:** 2026-05-19.
+
+### What was built
+
+Replaced the Phase-2 homepage (Hero / TrustBar / FuenfStimmen / FeaturedEditions /
+EditorialLetter / WerkstattTeaser / BibliothekTeaser) with the R8 7-section
+structure per `silbe-r8-tech-handover.md` + `silbe-homepage-content-brief.md`:
+
+| # | Section | Component | Notes |
+|---|---|---|---|
+| 1 | Hero | `components/home-r8/Hero.tsx` | 50/50 split per `silbe-hero-layout.html` — desktop 6:7 portrait crop, mobile 16:9 landscape crop, single Image master `/images/sku-02-rilke-habegeduld.jpg`. Sage hairline (64×1), Cormorant H1, underlined CTA. No `hero__credit` (composite is own work). |
+| 2 | Editorial-Statement | `EditorialStatement.tsx` | Cream + Crimson prose, ~640 narrow. Draft copy from brief (Merlin REFACTOR-pass deferred). |
+| 3 | Featured Editions | `FeaturedEditions.tsx` | 3 cards in fixed order Rilke → Kafka → Zweig, image-by-handle mapping in `lib/featured-homepage.ts`. Data via new `getHomepageFeaturedEditions()` in `shopify-queries.ts` — fetches the 3 handles via `products(query: "handle:a OR handle:b OR handle:c")` and re-orders to spec. Custom price formatter outputs `€ 32` (Euro voran + NBSP). Fallback "Die ersten Editionen sind in Vorbereitung" when zero matches. |
+| 4 | Essay-Teaser | `EssayTeaser.tsx` | "Woher die Zeile kommt" — Cormorant italic H2 + Crimson body + Mehr-lesen-CTA → `/editionen/silbe-rilke-geduld-goldrahmen`. |
+| 5 | About-Teaser | `AboutTeaser.tsx` | Typo-only block, "zwei Menschen in Wien" placeholder draft → `/ueber-uns`. |
+| 6 | Newsletter | `NewsletterSection.tsx` | Cream-bg variant of the Newsletter form on the homepage. Reuses `subscribeAction`. Footer's Phase-5 charcoal NewsletterForm is unchanged — same action, separate visual treatment. |
+| 7 | Footer-Wordmark-Fix | `components/layout/Footer.tsx` (edit) | TAGLINE: "SILBE versammelt Zeilen aus dem literarischen Kanon — jede mit ihrer Quelle." (replaces the Phase-5 "Wir sehen die Edition als die kleinste Form eines Verlags."). |
+
+Plus `tests/e2e/homepage.spec.ts` fully rewritten — 15 cases × 2 projects = 30,
+covering all 6 visible sections + a11y (`html lang`, single H1, page-title
+exact, every section as landmark, no archived voices / no forbidden phrases).
+`tests/e2e/layout.spec.ts` footer assertion updated to the new TAGLINE.
+
+Page metadata `title.absolute = 'SILBE — Editionen aus dem literarischen Kanon'`.
+
+### Architecture decisions locked
+
+- **`getHomepageFeaturedEditions(handles)`** new in `shopify-queries.ts` —
+  deterministic 3-card fetch by exact handle list. Does not depend on a
+  Shopify "featured" collection state or BEST_SELLING sort. Legacy
+  `getFeaturedEditions()` left in place (no other callers) for now.
+- **Image-by-handle mapping in `lib/featured-homepage.ts`** — single source
+  of truth. The component never hardcodes which image goes with which card.
+- **Cream-bg Newsletter is a separate component**, not a `tone` prop on the
+  Phase-5 `NewsletterForm`. ~80 LOC duplication accepted for scope discipline
+  in R8 — Phase 9 / Polish PR can extract a `<NewsletterFormCore>` if both
+  variants persist.
+- **Hero composite renders both crops from one master via container-aspect-
+  ratio + `object-fit: cover`** — no Sharp pre-cut derivatives. Source is
+  1024×1024 (sufficient for typical viewport sizes); spec'd 1200×1400 /
+  2000×1125 targets are container intents, not file dimensions.
+- **No `hero__credit` overlay** — composites are own work (fal.ai FLUX from
+  CC0 Wien-Museum references, see `_lizenzen.md`). The reference HTML's
+  Wikimedia credit pattern intentionally omitted.
+- **R8 CSS in `globals.css`** — three rules: `.silbe-r8-hero`,
+  `.silbe-r8-hero-figure`, `.silbe-r8-hero-content` (responsive split) plus
+  `.silbe-r8-featured-grid` (1 → 2 → 3 columns by breakpoint). All inline
+  styles otherwise (matches Phase-7 legal-pages convention).
+- **Custom price formatter `€ 32`** in `FeaturedEditions.tsx` — Intl.
+  NumberFormat defaults to `32,00 €` (Euro hinten); replaced with `${€}{NBSP}{integer-or-2dp}` to honor the acceptance spec.
+
+### Gates green (local)
+
+- ✅ `pnpm exec tsc --noEmit` clean
+- ✅ `pnpm lint:content` 77 targets, 0 forbidden phrases (one fix: U+0022 closing
+  quote in `EssayTeaser.tsx` comment → U+201C `“`)
+- ✅ `pnpm build` 22 routes — `/` rendered as `○ Static` with `1h` revalidate
+- ✅ `pnpm exec playwright test --grep-invert @snapshot` — 116 passed / 4 skipped
+  (price-format check skips when Shopify featured fallback is rendering)
+- ✅ MCP visual smoke Desktop 1280×900 + Mobile 393×852 — both renders
+  confirm 7-section layout, hero split, cream backgrounds, charcoal footer
+
+### Pending Aleks/Merlin actions
+
+1. **Merlin Refactor-Pass** on draft copy (per content brief REFACTOR-HINWEIS):
+   - Section 2 Editorial-Statement (most generic, most needs the SILBE voice)
+   - Section 4 Essay-Anriss (third Brücke-zum-Heute-Satz currently missing —
+     will come from the real Rilke editorial-essay when written)
+   - Section 5 About-Teaser ("zwei Menschen in Wien" vs. real names)
+2. **Composite `sku-02-rilke-habegeduld.jpg` has "deinem Herzen" baked into
+   the framed-poster text** — Sie-Form acceptance is met in code, but the
+   image's poster text uses Du-Form. Regenerate the composite or accept as
+   acceptable-since-it's-inside-the-image-not-website-copy.
+3. **Carryover from Phase 7** still applies: Impressum
+   `[INHABER LAUT FIRMENBUCH]` placeholder · Firmenbuchnummer "in
+   Bearbeitung" · DE-Versand activation · Klaviyo list setup + DOI + DACH-
+   GDPR mail · Vercel env vars · Klaviyo From-email · DNS for `send.silbe.at`
+
+### Carry-forward to Phase 9+
+
+- **R8 cleanup** — `components/home/{Hero,TrustBar,FuenfStimmen,FeaturedEditions,EditorialLetter,WerkstattTeaser,BibliothekTeaser}.tsx`
+  are no longer imported. Tree-shaken from build, but still on disk.
+  Candidate for a cleanup PR.
+- **Legacy `getFeaturedEditions()`** in `shopify-queries.ts` is now
+  callerless. Same cleanup candidate.
+- **NewsletterForm cream-bg / charcoal-bg unification** — extract a shared
+  core when a third variant is needed (or keep parallel, both are working).
+- **Old PR-7 carry-forward unchanged:** Cookiebot wiring (Phase 9), GA4 +
+  Meta Pixel (Phase 10), 301-Redirects audit (Phase 9), `/ueber-uns`
+  editorial pass, DOI-mail brand-pass, CH-geo-detection, `/stimmen` +
+  `/bibliothek` listing routes, MockupCarousel, ProductJsonLd,
+  `formatPrice` extraction (4+ callsites now), Variant deep-link hydration flash.
+
+---
+
+## Previous phase — 7 · Legal Pages
+
+**Branch:** `phase-7-legal-pages` · **PR:** [#22](https://github.com/Brainsells-ai/brainsells-headless/pull/22) · **Merge commit:** `d9dc844` · **Closed:** 2026-05-13.
 
 ### What was built
 
@@ -77,7 +174,8 @@ Plus `tests/e2e/legal-pages.spec.ts` — 14×status/H1/title-template + 2×foote
 
 | Phase | Title | PR | Merge commit | Status |
 |---|---|---|---|---|
-| 7 — Legal pages | `phase-7-legal-pages` | #22 | tbd | ⏳ open (PR #22, all gates green) |
+| 8 — R8 Homepage | `feat/r8-homepage` | tbd | tbd | ⏳ open (all gates green) |
+| 7 — Legal pages | `phase-7-legal-pages` | #22 | `d9dc844` | ✅ merged |
 | 6 — `not-found` · `/editionen` · `VariantSelector` | [handoff-phase-6.md](./handoff-phase-6.md) | #18, #19, #20 | `97b4035`, `54eeb10`, `d26d7fd` | ✅ merged (3 PRs) |
 | 5 — Header / Footer / Navigation + Klaviyo | [handoff-phase-5.md](./handoff-phase-5.md) | #14, #15, #16, #17 | `a0c6a06` | ✅ merged (4 PRs) |
 | 4 — Cart-Drawer + Checkout-Redirect | [handoff-phase-4.md](./handoff-phase-4.md) | #13 | `3ed3ae3` | ✅ merged |
