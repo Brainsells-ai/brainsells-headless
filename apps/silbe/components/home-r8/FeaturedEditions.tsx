@@ -77,7 +77,7 @@ export async function FeaturedEditions() {
               textUnderlineOffset: '4px',
             }}
           >
-            Alle Editionen ansehen →
+            Editionen ansehen →
           </Link>
         </div>
       </section>
@@ -209,7 +209,7 @@ export async function FeaturedEditions() {
               paddingBottom: '4px',
             }}
           >
-            Alle Editionen ansehen →
+            Editionen ansehen →
           </Link>
         </div>
       </div>

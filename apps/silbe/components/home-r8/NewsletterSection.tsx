@@ -66,6 +66,20 @@ export function NewsletterSection() {
           >
             Eine Zeile, ihre Geschichte, eine neue Edition. Sonst nichts.
           </p>
+          <p
+            lang="de"
+            style={{
+              fontFamily: 'var(--font-crimson), Georgia, serif',
+              fontStyle: 'italic',
+              fontSize: '15px',
+              lineHeight: 1.6,
+              color: 'var(--color-taupe)',
+              margin: 0,
+              maxWidth: '520px',
+            }}
+          >
+            Weitere Editionen folgen.
+          </p>
         </header>
 
         {state.status === 'success' ? (
