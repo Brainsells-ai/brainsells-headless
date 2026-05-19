@@ -211,22 +211,6 @@ const PRODUCTS_BY_VOICE_QUERY = /* GraphQL */ `
   }
 `;
 
-const FEATURED_COLLECTION_SUMMARY_QUERY = /* GraphQL */ `
-  ${PRODUCT_SUMMARY_FRAGMENT}
-  query FeaturedCollectionSummary {
-    collection(handle: "featured") {
-      products(first: 4) { nodes { ...ProductSummary } }
-    }
-  }
-`;
-
-const BEST_SELLING_SUMMARY_QUERY = /* GraphQL */ `
-  ${PRODUCT_SUMMARY_FRAGMENT}
-  query BestSellingSummary {
-    products(first: 4, sortKey: BEST_SELLING) { nodes { ...ProductSummary } }
-  }
-`;
-
 const ALL_EDITIONS_SUMMARY_QUERY = /* GraphQL */ `
   ${PRODUCT_SUMMARY_FRAGMENT}
   query AllEditionsSummary {
@@ -472,31 +456,3 @@ export async function getHomepageFeaturedEditions(
   }
 }
 
-// Homepage Featured-Editions (legacy): curated 'featured' collection, with
-// silent fallback to BEST_SELLING. Returns SummaryProduct (no metafields,
-// no variants) — sufficient for grid-card display.
-export async function getFeaturedEditions(): Promise<SummaryProduct[]> {
-  try {
-    const data = await shopifyFetch<{
-      collection: { products: { nodes: ShopifyProductSummaryRaw[] } } | null;
-    }>(FEATURED_COLLECTION_SUMMARY_QUERY, undefined, {
-      tags: [SHOPIFY_TAGS.collection('featured'), SHOPIFY_TAGS.products],
-    });
-    const nodes = data.collection?.products.nodes ?? [];
-    if (nodes.length > 0) return nodes.map(toSummary);
-  } catch (err) {
-    console.error('[shopify-queries] featured collection fetch failed:', err);
-  }
-
-  try {
-    const data = await shopifyFetch<{ products: { nodes: ShopifyProductSummaryRaw[] } }>(
-      BEST_SELLING_SUMMARY_QUERY,
-      undefined,
-      { tags: [SHOPIFY_TAGS.products] },
-    );
-    return data.products.nodes.map(toSummary);
-  } catch (err) {
-    console.error('[shopify-queries] BEST_SELLING summary fallback failed:', err);
-    return [];
-  }
-}
