@@ -8,7 +8,7 @@ The active phase lives inline below; prior phases are tracked in the table.
 
 ## Current phase — 8 · R8 Homepage
 
-**Branch:** `feat/r8-homepage` · **PR:** tbd · **Status:** open, all gates green · **Opened:** 2026-05-19.
+**Branch:** `feat/r8-homepage` · **PR:** [#25](https://github.com/Brainsells-ai/brainsells-headless/pull/25) · **Merge commit:** `2fd2985` · **Status:** ✅ merged · **Closed:** 2026-05-19.
 
 ### What was built
 
@@ -174,7 +174,7 @@ Plus `tests/e2e/legal-pages.spec.ts` — 14×status/H1/title-template + 2×foote
 
 | Phase | Title | PR | Merge commit | Status |
 |---|---|---|---|---|
-| 8 — R8 Homepage | `feat/r8-homepage` | tbd | tbd | ⏳ open (all gates green) |
+| 8 — R8 Homepage | `feat/r8-homepage` | #25 | `2fd2985` | ✅ merged |
 | 7 — Legal pages | `phase-7-legal-pages` | #22 | `d9dc844` | ✅ merged |
 | 6 — `not-found` · `/editionen` · `VariantSelector` | [handoff-phase-6.md](./handoff-phase-6.md) | #18, #19, #20 | `97b4035`, `54eeb10`, `d26d7fd` | ✅ merged (3 PRs) |
 | 5 — Header / Footer / Navigation + Klaviyo | [handoff-phase-5.md](./handoff-phase-5.md) | #14, #15, #16, #17 | `a0c6a06` | ✅ merged (4 PRs) |
