@@ -38,7 +38,7 @@ Page metadata `title.absolute = 'SILBE — Editionen aus dem literarischen Kanon
 - **`getHomepageFeaturedEditions(handles)`** new in `shopify-queries.ts` —
   deterministic 3-card fetch by exact handle list. Does not depend on a
   Shopify "featured" collection state or BEST_SELLING sort. Legacy
-  `getFeaturedEditions()` left in place (no other callers) for now.
+  `getFeaturedEditions()` removed in follow-up PR #27.
 - **Image-by-handle mapping in `lib/featured-homepage.ts`** — single source
   of truth. The component never hardcodes which image goes with which card.
 - **Cream-bg Newsletter is a separate component**, not a `tone` prop on the
@@ -86,13 +86,14 @@ Page metadata `title.absolute = 'SILBE — Editionen aus dem literarischen Kanon
    Bearbeitung" · DE-Versand activation · Klaviyo list setup + DOI + DACH-
    GDPR mail · Vercel env vars · Klaviyo From-email · DNS for `send.silbe.at`
 
+### R8 follow-ups
+
+- ✅ **R8 cleanup** — `components/home/*` (7 files) + legacy
+  `getFeaturedEditions()` + its two query consts removed in PR #27
+  (merge `b0d293c`), −1061 LOC, no functional change.
+
 ### Carry-forward to Phase 9+
 
-- **R8 cleanup** — `components/home/{Hero,TrustBar,FuenfStimmen,FeaturedEditions,EditorialLetter,WerkstattTeaser,BibliothekTeaser}.tsx`
-  are no longer imported. Tree-shaken from build, but still on disk.
-  Candidate for a cleanup PR.
-- **Legacy `getFeaturedEditions()`** in `shopify-queries.ts` is now
-  callerless. Same cleanup candidate.
 - **NewsletterForm cream-bg / charcoal-bg unification** — extract a shared
   core when a third variant is needed (or keep parallel, both are working).
 - **Old PR-7 carry-forward unchanged:** Cookiebot wiring (Phase 9), GA4 +
