@@ -1,4 +1,4 @@
-import Image from 'next/image';
+﻿import Image from 'next/image';
 import Link from 'next/link';
 
 // R8 Hero — Split-Layout (Konzept C, silbe-hero-layout.html als Referenz).
@@ -68,7 +68,7 @@ export function Hero() {
             textWrap: 'balance',
           }}
         >
-          „Habe Geduld gegen alles Ungelöste in Ihrem Herzen.“
+          „Habe Geduld gegen alles Ungelöste in deinem Herzen.“
         </h1>
 
         <div style={{ marginBottom: 'clamp(40px, 4vw, 56px)' }}>
