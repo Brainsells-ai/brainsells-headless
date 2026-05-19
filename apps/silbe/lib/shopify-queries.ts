@@ -234,6 +234,15 @@ const ALL_EDITIONS_SUMMARY_QUERY = /* GraphQL */ `
   }
 `;
 
+const HOMEPAGE_FEATURED_QUERY = /* GraphQL */ `
+  ${PRODUCT_SUMMARY_FRAGMENT}
+  query HomepageFeatured($q: String!) {
+    products(first: 10, query: $q) {
+      nodes { ...ProductSummary }
+    }
+  }
+`;
+
 // ─── Parsing Helpers (internal) ────────────────────────────────────────────
 
 function parseMetafields(raw: ShopifyMetafieldRaw[]): ParsedProduct['metafields'] {
@@ -432,7 +441,38 @@ export async function getAllEditionsSummary(): Promise<SummaryProduct[]> {
   );
 }
 
-// Homepage Featured-Editions: curated 'featured' collection, with
+// R8 Homepage Featured-Editions: fetch a fixed, ordered set of handles
+// (Rilke → Kafka → Zweig per lib/featured-homepage.ts). Deterministic —
+// never relies on Shopify collection state or BEST_SELLING. Returns the
+// summaries in the SAME order as `handles` (Shopify response order is not
+// guaranteed). Missing handles are silently dropped — the section can render
+// 1–3 cards; if all three are missing, returns [] and caller renders the
+// "Editionen — in Vorbereitung" fallback.
+export async function getHomepageFeaturedEditions(
+  handles: readonly string[],
+): Promise<SummaryProduct[]> {
+  if (handles.length === 0) return [];
+  const q = handles.map((h) => `handle:${h}`).join(' OR ');
+  try {
+    const data = await shopifyFetch<{ products: { nodes: ShopifyProductSummaryRaw[] } }>(
+      HOMEPAGE_FEATURED_QUERY,
+      { q },
+      { tags: [SHOPIFY_TAGS.products, ...handles.map(SHOPIFY_TAGS.product)] },
+    );
+    const byHandle = new Map<string, ShopifyProductSummaryRaw>(
+      data.products.nodes.map((n) => [n.handle, n]),
+    );
+    return handles
+      .map((h) => byHandle.get(h))
+      .filter((n): n is ShopifyProductSummaryRaw => Boolean(n))
+      .map(toSummary);
+  } catch (err) {
+    console.error('[shopify-queries] homepage featured fetch failed:', err);
+    return [];
+  }
+}
+
+// Homepage Featured-Editions (legacy): curated 'featured' collection, with
 // silent fallback to BEST_SELLING. Returns SummaryProduct (no metafields,
 // no variants) — sufficient for grid-card display.
 export async function getFeaturedEditions(): Promise<SummaryProduct[]> {

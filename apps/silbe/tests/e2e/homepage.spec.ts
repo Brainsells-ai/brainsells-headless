@@ -1,81 +1,118 @@
 import { test, expect } from '@playwright/test';
 
-// Tests are tagged so they can be selected via --grep ("@hero", "@trust",
-// "@stimmen", "@featured", "@a11y").
+// R8 Homepage — 7-Section structure (6 visible sections + Footer-Wordmark-Fix).
+// Tags: @hero, @editorial, @featured, @essay, @about, @newsletter, @a11y.
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
 });
 
-test.describe('hero hybrid layout', () => {
-  test('renders quote, source, tagline, CTA pair, and composite image @hero', async ({ page }) => {
+test.describe('section 1 — hero', () => {
+  test('renders hero quote, source, CTA, composite image @hero', async ({ page }) => {
     const h1 = page.getByRole('heading', { level: 1 });
     await expect(h1).toBeVisible();
-    await expect(h1).toContainText('Habe Geduld gegen alles Ungelöste');
-    await expect(h1).toContainText('„'); // deutsches Anführungszeichen
+    await expect(h1).toContainText('Habe Geduld gegen alles Ungelöste in Ihrem Herzen');
+    await expect(h1).toContainText('„');
     await expect(h1).toContainText('“');
 
-    // Source caption with Guillemets.
-    const source = page.getByText(/Rainer Maria Rilke · ›Briefe an einen jungen Dichter‹ · 1903/);
-    await expect(source.first()).toBeVisible();
+    const hero = page.getByRole('region', { name: /Editorial-Hero/ });
+    await expect(hero.getByText('Rainer Maria Rilke', { exact: true })).toBeVisible();
+    await expect(
+      hero.getByText('›Briefe an einen jungen Dichter‹ · 1903'),
+    ).toBeVisible();
+    await expect(
+      hero.getByRole('link', { name: /Alle Editionen ansehen/ }),
+    ).toBeVisible();
 
-    // CTA pair — exact:true to avoid colliding with the closing
-    // "Alle Editionen ansehen →" links elsewhere on the page.
-    await expect(page.getByRole('link', { name: 'Editionen ansehen', exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Bibliothek lesen →' })).toBeVisible();
-
-    // Composite image present with descriptive alt text.
-    const heroImg = page.getByRole('img', { name: /Goldrahmen.*Atelier Wien|Rilke-Edition/ });
+    const heroImg = hero.getByRole('img');
     await expect(heroImg.first()).toBeVisible();
+    const alt = await heroImg.first().getAttribute('alt');
+    expect(alt).toMatch(/Rilke-Edition.*Habe Geduld/);
   });
 
-  test('hero figure caption is present @hero', async ({ page }) => {
-    await expect(page.getByText('Goldrahmen-Edition · Atelier Wien').first()).toBeVisible();
-  });
-
-  test('hero quote uses German typography only @hero', async ({ page }) => {
-    const heroSection = page.getByRole('region', { name: /Editorial Klassiker/ });
-    const html = await heroSection.innerHTML();
+  test('hero uses German typography only @hero', async ({ page }) => {
+    const hero = page.getByRole('region', { name: /Editorial-Hero/ });
+    const html = await hero.innerHTML();
     expect(html).toMatch(/„Habe Geduld/);
     expect(html).not.toMatch(/"Habe Geduld/);
-    expect(html).not.toMatch(/"Briefe an einen jungen Dichter"/);
     expect(html).toMatch(/›Briefe an einen jungen Dichter‹/);
+    expect(html).not.toMatch(/"Briefe an einen jungen Dichter"/);
+  });
+
+  test('no hero credit overlay (composite is own work) @hero', async ({ page }) => {
+    const hero = page.getByRole('region', { name: /Editorial-Hero/ });
+    // No Wikimedia/CC-credit string anywhere in the hero.
+    const html = await hero.innerHTML();
+    expect(html).not.toMatch(/Wikimedia|gemeinfrei|CC0|Creative Commons/i);
   });
 });
 
-test.describe('trust bar', () => {
-  test('renders the four canonical trust statements @trust', async ({ page }) => {
-    await expect(page.getByText('Hochweißes Premium-Papier · 200 g/m² · matt · säurefrei')).toBeVisible();
-    await expect(page.getByText('Gedruckt in der EU · überwiegend Deutschland')).toBeVisible();
-    await expect(page.getByText('Versand 3–6 Werktage · DE · AT · ab €39 frei')).toBeVisible();
-    await expect(page.getByText('Kuratiert in Wien · Per Hand · primärquellenverifiziert')).toBeVisible();
-  });
-});
-
-test.describe('fünf stimmen', () => {
-  test('lists all five voices with full names and Guillemets work titles @stimmen', async ({ page }) => {
-    const section = page.getByRole('region', { name: /Die SILBE-Auswahl/ });
-    for (const name of [
-      'Rainer Maria Rilke',
-      'Franz Kafka',
-      'Thomas Mann',
-      'Stefan Zweig',
-      'Marie von Ebner-Eschenbach',
-    ]) {
-      await expect(section.getByRole('heading', { name })).toBeVisible();
-    }
-    // No archived Lasker-Schüler appears anywhere on the homepage.
-    const html = await page.content();
-    expect(html).not.toMatch(/Lasker-Schüler|Lasker-Schueler/);
-  });
-});
-
-test.describe('featured editions', () => {
-  test('featured editions render — either Shopify products or in-Vorbereitung fallback @featured', async ({ page }) => {
-    const section = page.getByRole('region', { name: /(Ausgewählte Editionen|Editionen — in Vorbereitung)/ });
+test.describe('section 2 — editorial statement', () => {
+  test('renders positioning copy @editorial', async ({ page }) => {
+    const section = page.getByRole('region', { name: /Editorial-Statement/ });
     await expect(section).toBeVisible();
-    // The "Alle Editionen ansehen →" link is present in both states.
+    await expect(
+      section.getByText(/SILBE bringt literarische Zeilen aus dem deutschsprachigen Kanon/),
+    ).toBeVisible();
+    await expect(
+      section.getByText(/Kein Dekor\. Ein Satz, der bleibt/),
+    ).toBeVisible();
+  });
+});
+
+test.describe('section 3 — featured editions', () => {
+  test('featured editions render — either 3 cards or in-Vorbereitung fallback @featured', async ({ page }) => {
+    const section = page.getByRole('region', {
+      name: /(Ausgewählte Editionen|Editionen — in Vorbereitung)/,
+    });
+    await expect(section).toBeVisible();
     await expect(section.getByRole('link', { name: /Alle Editionen ansehen/ })).toBeVisible();
+  });
+
+  test('price format uses Euro-first NBSP layout when present @featured', async ({ page }) => {
+    const section = page.getByRole('region', { name: /Ausgewählte Editionen/ });
+    const isPresent = await section.isVisible().catch(() => false);
+    test.skip(!isPresent, 'Shopify featured editions not present — fallback rendered.');
+    // Regex: "€" + NBSP (U+00A0) + digits, optional comma+cents.
+    const priceRe = /€ \d+(?:,\d{2})?/;
+    const text = await section.innerText();
+    expect(text).toMatch(priceRe);
+    // Must NOT use Intl's default "32,00 €" (Euro after) form.
+    expect(text).not.toMatch(/\d+,\d{2}\s*€/);
+  });
+});
+
+test.describe('section 4 — essay teaser', () => {
+  test('renders Woher die Zeile kommt + Mehr lesen CTA @essay', async ({ page }) => {
+    const section = page.getByRole('region', { name: /Woher die Zeile kommt/ });
+    await expect(section).toBeVisible();
+    await expect(
+      section.getByRole('heading', { name: 'Woher die Zeile kommt' }),
+    ).toBeVisible();
+    await expect(section.getByRole('link', { name: /Mehr lesen/ })).toBeVisible();
+  });
+});
+
+test.describe('section 5 — about teaser', () => {
+  test('renders Gründer-anriss + Über SILBE CTA @about', async ({ page }) => {
+    const section = page.getByRole('region', { name: /Über SILBE/ });
+    await expect(section).toBeVisible();
+    await expect(
+      section.getByText(/zwei Menschen in Wien gemacht/),
+    ).toBeVisible();
+    await expect(section.getByRole('link', { name: /Mehr über SILBE/ })).toBeVisible();
+  });
+});
+
+test.describe('section 6 — newsletter cta (homepage)', () => {
+  test('renders Kein Newsletter. Ein Brief. heading + cream-bg form @newsletter', async ({ page }) => {
+    const section = page.getByRole('region', { name: /Briefe von SILBE/ });
+    await expect(section).toBeVisible();
+    await expect(
+      section.getByRole('heading', { name: 'Kein Newsletter. Ein Brief.' }),
+    ).toBeVisible();
+    await expect(section.getByRole('textbox', { name: 'E-Mail' })).toBeVisible();
+    await expect(section.getByRole('button', { name: /Anmelden/ })).toBeVisible();
   });
 });
 
@@ -99,17 +136,28 @@ test.describe('a11y homepage', () => {
     expect(lang).toBe('de-AT');
   });
 
-  test('every section is reachable as a landmark @a11y', async ({ page }) => {
+  test('page title is R8 absolute @a11y', async ({ page }) => {
+    await expect(page).toHaveTitle('SILBE — Editionen aus dem literarischen Kanon');
+  });
+
+  test('every R8 section is reachable as a landmark @a11y', async ({ page }) => {
     for (const label of [
-      /Editorial Klassiker/, // Hero
-      /Vertrauen/, // TrustBar
-      /(Ausgewählte Editionen|Editionen — in Vorbereitung)/, // FeaturedEditions
-      /Die SILBE-Auswahl/, // FuenfStimmen
-      /Editorial-Brief/, // EditorialLetter
-      /Editorial-Atelier/, // WerkstattTeaser
-      /Bibliothek/, // BibliothekTeaser
+      /Editorial-Hero/,
+      /Editorial-Statement/,
+      /(Ausgewählte Editionen|Editionen — in Vorbereitung)/,
+      /Woher die Zeile kommt/,
+      /Über SILBE/,
+      /Briefe von SILBE/,
     ]) {
       await expect(page.getByRole('region', { name: label })).toBeVisible();
     }
+  });
+
+  test('no archived voices or forbidden phrases visible @a11y', async ({ page }) => {
+    const html = await page.content();
+    expect(html).not.toMatch(/Lasker-Schüler|Lasker-Schueler/);
+    expect(html).not.toMatch(/handgesetzt|handnummeriert|Bleisatz/i);
+    expect(html).not.toMatch(/sechs Wiener Stimmen|Wiener Stimmen/);
+    expect(html).not.toMatch(/limitiert|Limited Edition/i);
   });
 });

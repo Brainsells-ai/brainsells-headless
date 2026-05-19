@@ -80,6 +80,55 @@ body {
   }
 }
 
+/* ─── R8 Homepage ─────────────────────────────────────────────────── */
+
+.silbe-r8-hero {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto;
+}
+.silbe-r8-hero-figure {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+}
+.silbe-r8-hero-content {
+  padding: 56px 28px 72px;
+}
+@media (min-width: 768px) {
+  .silbe-r8-hero {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto;
+    align-items: stretch;
+  }
+  .silbe-r8-hero-figure {
+    /* 6:7 Portrait-Crop für Desktop (silbe-hero-layout.html §Crops). */
+    aspect-ratio: 6 / 7;
+  }
+  .silbe-r8-hero-content {
+    padding: clamp(64px, 8vw, 100px);
+  }
+}
+.silbe-r8-hero-cta:hover {
+  gap: 20px;
+  opacity: 0.7;
+}
+
+.silbe-r8-featured-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 40px 24px;
+}
+@media (min-width: 640px) {
+  .silbe-r8-featured-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 1024px) {
+  .silbe-r8-featured-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 /* PDP AddToCartButton — inline-styled with appearance: none which strips
    the native focus ring on WebKit/Safari. Restore visible focus via
    :focus-visible per Web Interface Guidelines (interactive elements need

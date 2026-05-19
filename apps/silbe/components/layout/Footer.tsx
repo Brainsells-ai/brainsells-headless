@@ -12,7 +12,8 @@ const LEGAL_LINKS = [
   { href: '/cookie-einstellungen', label: 'Cookie-Einstellungen' },
 ] as const;
 
-const TAGLINE = 'Wir sehen die Edition als die kleinste Form eines Verlags.';
+const TAGLINE =
+  'SILBE versammelt Zeilen aus dem literarischen Kanon — jede mit ihrer Quelle.';
 
 const HEADING_STYLE = {
   fontFamily: 'var(--font-inter), system-ui, sans-serif',
