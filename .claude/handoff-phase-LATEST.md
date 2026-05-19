@@ -105,6 +105,27 @@ Page metadata `title.absolute = 'SILBE — Editionen aus dem literarischen Kanon
   Zweig hat halt den längsten Titel. Kein `minHeight`, kein Suffix-Drop,
   keine Code-Änderung. Branch `chore/silbe-card-title-balance` ungemerged
   gelöscht.
+- ✅ **Test-Sync nach MVP-Pivot** — PR #33 (merge `7cec66e`, Session
+  2026-05-19) behebt zwei parallele Test-Drifts gegen die 3-SKU-Realität:
+  - Hero-Quote-Assertion in `homepage.spec.ts:14` hat `›Ihrem‹` (Sie-Form)
+    erwartet, Code liefert seit `e231bdb` `›deinem‹` (Rilke-Original).
+  - `CANONICAL_HANDLES` listete 8 Edition-Handles, Shopify führt nur die
+    3 MVPs (`silbe-rilke-habegeduld`, `silbe-kafka-axt`,
+    `silbe-zweig-dir-der-du`) als Active → ~36 Test-Failures durch 404s
+    auf nicht-aktive Routen.
+  Lösung: neuer `active: boolean` Field in `SkuManifest`-Type.
+  `CANONICAL_HANDLES` filtert jetzt auf `product_type === 'edition' &&
+  active === true`. Promoten einer SKU = `active: true` flippen, keine
+  separate Allowlist. `ALL_CANONICAL_HANDLES` bleibt voll (seed-values +
+  validation brauchen Future-SKUs). 5 Files (`metafields-manifest.ts` +
+  `check-variants.ts` + 3 Test-Specs), +80/−44. PR #32 wurde als
+  `superseded by #33` geschlossen.
+- ⏭️ **VariantSelector multi-variant Hero-Tests skipped** (gleicher PR).
+  Die 4 Tests in `tests/e2e/variant-selector.spec.ts` „multi-variant
+  Hero" sind `describe.skip` mit TODO, weil aktuell keiner der 3 aktiven
+  MVPs Multi-Variant ist. Beim Aktivieren einer Hero-Style-SKU (z.B.
+  `silbe-rilke-geduld-hero-burgundy` durch `active: true` flippen):
+  einfach `describe.skip` → `describe`, Tests laufen wieder.
 
 ### Carry-forward to Phase 9+
 
@@ -115,6 +136,19 @@ Page metadata `title.absolute = 'SILBE — Editionen aus dem literarischen Kanon
   editorial pass, DOI-mail brand-pass, CH-geo-detection, `/stimmen` +
   `/bibliothek` listing routes, MockupCarousel, ProductJsonLd,
   `formatPrice` extraction (4+ callsites now), Variant deep-link hydration flash.
+- **Next.js 16 streaming TypeError** — `controller[kState].transformAlgorithm
+  is not a function` taucht im `[WebServer]` Log während Playwright-Runs
+  und auf dev-server-Renders auf. Bricht keine Tests (PR #33 grün in 2m43s),
+  ist kosmetisch. Vermutlich undici/Next-internes Streaming-Edge-Case.
+  Investigate when upgrading Next.js oder wenn Logs unleserlich werden.
+- **5 manifest-Editions mit `active: false` warten auf Editorial-Arbeit**
+  (TODO_AUTHOR-Notes erhalten in `scripts/metafields-manifest.ts`):
+  `silbe-rilke-geduld-hero-burgundy` (Multi-Variant-Hero, ready zum
+  Re-Aktivieren via flag-flip), `silbe-mann-einsamkeit-hero-charcoal` +
+  `silbe-mann-einsamkeit-goldrahmen` (Quote-Quelle klären),
+  `silbe-zweig-memorial-staubrose` (Memorial-Quote unklar),
+  `silbe-ee-aphorismus-goldrahmen` (welcher Aphorismus). Postkarten-Sets
+  (3) + Bundles (2) ebenfalls `active: false`.
 
 ---
 
