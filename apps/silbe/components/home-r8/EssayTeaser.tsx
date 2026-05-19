@@ -58,7 +58,7 @@ export function EssayTeaser() {
         </p>
 
         <Link
-          href="/editionen/silbe-rilke-geduld-goldrahmen"
+          href="/editionen/silbe-rilke-habegeduld"
           style={{
             display: 'inline-flex',
             alignItems: 'center',

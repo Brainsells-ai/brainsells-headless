@@ -101,7 +101,7 @@ export const EDITIONS: readonly SkuManifest[] = [
     themes: ['Sehnsucht', 'Wien', 'Geduld', 'Brief', 'Sprache'],
   },
   {
-    handle: 'silbe-rilke-geduld-goldrahmen',
+    handle: 'silbe-rilke-habegeduld',
     product_type: 'edition',
     voice: 'rilke',
     work_title: '›Briefe an einen jungen Dichter‹',
@@ -115,7 +115,7 @@ export const EDITIONS: readonly SkuManifest[] = [
 
   // ─── Kafka ─────────────────────────────────────────────────────────────
   {
-    handle: 'silbe-kafka-axt-goldrahmen',
+    handle: 'silbe-kafka-axt',
     product_type: 'edition',
     voice: 'kafka',
     work_title: '›Brief an Oskar Pollak‹',
@@ -173,7 +173,7 @@ export const EDITIONS: readonly SkuManifest[] = [
     themes: { TODO_AUTHOR: 'Themes — Vorschlag: ["Erinnerung", "Wien", "Europa", "Verlust"]' },
   },
   {
-    handle: 'silbe-zweig-unbekannte-goldrahmen',
+    handle: 'silbe-zweig-dir-der-du',
     product_type: 'edition',
     voice: 'zweig',
     work_title: '›Brief einer Unbekannten‹',

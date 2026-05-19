@@ -17,12 +17,12 @@ const FLAGSHIP_HANDLE = 'silbe-rilke-geduld-hero-burgundy';
 
 const CANONICAL_HANDLES = [
   'silbe-rilke-geduld-hero-burgundy',
-  'silbe-rilke-geduld-goldrahmen',
-  'silbe-kafka-axt-goldrahmen',
+  'silbe-rilke-habegeduld',
+  'silbe-kafka-axt',
   'silbe-mann-einsamkeit-hero-charcoal',
   'silbe-mann-einsamkeit-goldrahmen',
   'silbe-zweig-memorial-staubrose',
-  'silbe-zweig-unbekannte-goldrahmen',
+  'silbe-zweig-dir-der-du',
   'silbe-ee-aphorismus-goldrahmen',
 ] as const;
 

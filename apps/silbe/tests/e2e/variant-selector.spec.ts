@@ -2,11 +2,11 @@ import { test, expect } from '@playwright/test';
 
 // Phase-6 P3 — VariantSelector. Multi-variant Hero editions render an
 // A3 · A2 Format-button row that mutates `?variant=...` in the URL.
-// Single-variant Goldrahmen editions render no selector. URL state is
-// the source of truth — deep-links honor `?variant=A2` after hydration.
+// Single-variant editions render no selector. URL state is the source
+// of truth — deep-links honor `?variant=A2` after hydration.
 
 const HERO_HANDLE = 'silbe-rilke-geduld-hero-burgundy';
-const GOLDRAHMEN_HANDLE = 'silbe-rilke-geduld-goldrahmen';
+const SINGLE_VARIANT_HANDLE = 'silbe-rilke-habegeduld';
 
 test.describe('VariantSelector @variant-selector', () => {
   test('multi-variant Hero PDP exposes Format buttons with default A3 pressed', async ({
@@ -49,14 +49,14 @@ test.describe('VariantSelector @variant-selector', () => {
     await expect(a2).toHaveAttribute('aria-pressed', 'true');
   });
 
-  test('single-variant Goldrahmen PDP renders no Format selector', async ({
+  test('single-variant PDP renders no Format selector', async ({
     page,
   }) => {
-    await page.goto(`/editionen/${GOLDRAHMEN_HANDLE}`);
+    await page.goto(`/editionen/${SINGLE_VARIANT_HANDLE}`);
 
-    // The fieldset is conditional on multi-variant; on Goldrahmen it
-    // must be absent. AddToCartButton must still be present (cart row
-    // renders unconditionally inside the island).
+    // The fieldset is conditional on multi-variant; on single-variant
+    // SKUs it must be absent. AddToCartButton must still be present
+    // (cart row renders unconditionally inside the island).
     await expect(page.getByRole('group', { name: 'Format' })).toHaveCount(0);
     await expect(
       page.getByRole('button', { name: /In den Warenkorb|Vergriffen/ }),
