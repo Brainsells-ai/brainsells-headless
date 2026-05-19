@@ -11,7 +11,7 @@ test.describe('section 1 — hero', () => {
   test('renders hero quote, source, CTA, composite image @hero', async ({ page }) => {
     const h1 = page.getByRole('heading', { level: 1 });
     await expect(h1).toBeVisible();
-    await expect(h1).toContainText('Habe Geduld gegen alles Ungelöste in Ihrem Herzen');
+    await expect(h1).toContainText('Habe Geduld gegen alles Ungelöste in deinem Herzen');
     await expect(h1).toContainText('„');
     await expect(h1).toContainText('“');
 

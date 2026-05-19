@@ -5,26 +5,19 @@ loadEnv({ path: path.resolve(__dirname, '..', '.env.local') });
 
 import { shopifyFetch } from '../lib/shopify';
 
-// One-off diagnostic for Klasse-3a-Frage: sind silbe-rilke-geduld-hero-burgundy
-// und silbe-rilke-geduld-goldrahmen separate Products mit je 1 Variant
-// (Option A), oder existiert der Hero als Product mit 2 Variants
-// (Option B)? Selbe Frage parallel für die Mann-Einsamkeit-SKUs.
+// One-off diagnostic for the β-strategy: verify the active edition SKUs
+// in Shopify have the expected variant shape (single-variant for
+// Goldrahmen-style, multi-variant A3+A2 for Hero-style) and that
+// Format-dimensions match ISO 216.
 //
-// Result A → Phase 3 wie geplant, Goldrahmen-Migration als Polish-Item.
-// Result B → STOPP, Manifest-Refactor (Product vs Variant Metafield-Level).
-// Result C → "anders" — Bericht.
+// 2026-05-19: only the 3 MVP editions are Active in Shopify. Expand
+// EDITION_HANDLES when more SKUs flip to active in
+// scripts/metafields-manifest.ts.
 
-// All 8 product_type === 'edition' SKUs from the manifest. Bundles +
-// Postcard-Sets excluded — Phase 4 scope.
 const EDITION_HANDLES = [
-  'silbe-rilke-geduld-hero-burgundy',
-  'silbe-rilke-geduld-goldrahmen',
-  'silbe-kafka-axt-goldrahmen',
-  'silbe-mann-einsamkeit-hero-charcoal',
-  'silbe-mann-einsamkeit-goldrahmen',
-  'silbe-zweig-memorial-staubrose',
-  'silbe-zweig-unbekannte-goldrahmen',
-  'silbe-ee-aphorismus-goldrahmen',
+  'silbe-rilke-habegeduld',
+  'silbe-kafka-axt',
+  'silbe-zweig-dir-der-du',
 ] as const;
 
 const VARIANT_FRAGMENT = /* GraphQL */ `
@@ -86,7 +79,7 @@ function parseFormatString(value: string): { format: string; dims: string } | nu
 }
 
 async function main(): Promise<void> {
-  console.log('VariantsCheck — alle 8 edition-SKUs gegen Live-Shopify.\n');
+  console.log(`VariantsCheck — alle ${EDITION_HANDLES.length} active edition-SKUs gegen Live-Shopify.\n`);
   const data = await shopifyFetch<Response>(QUERY, undefined, { cache: 'no-store' });
 
   let missing = 0;
