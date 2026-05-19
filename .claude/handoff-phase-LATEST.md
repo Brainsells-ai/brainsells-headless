@@ -91,6 +91,20 @@ Page metadata `title.absolute = 'SILBE — Editionen aus dem literarischen Kanon
 - ✅ **R8 cleanup** — `components/home/*` (7 files) + legacy
   `getFeaturedEditions()` + its two query consts removed in PR #27
   (merge `b0d293c`), −1061 LOC, no functional change.
+- ✅ **Brand-handle migration (Pattern 0)** — 3 active Gelato-SKUs umbenannt
+  von Goldrahmen-Schema auf Brand-Standard in PR #30 (merge `520a18f`,
+  Session 2026-05-19): `silbe-rilke-geduld-goldrahmen` →
+  `silbe-rilke-habegeduld`, `silbe-kafka-axt-goldrahmen` → `silbe-kafka-axt`,
+  `silbe-zweig-unbekannte-goldrahmen` → `silbe-zweig-dir-der-du`. 5 Files,
+  +21/−21. Unblockt `/editionen` (Schnittmenge mit Shopify-Katalog).
+- ⏭️ **Card-Title-Balance (Pattern 0 Polish) — bewusst nicht umgesetzt**
+  (Session 2026-05-19). Beobachtung: `/editionen`-Cards zeigen Rilke 1-zeilig,
+  Kafka + Zweig 2-zeilig (balanced). `textWrap: 'balance'` ist bereits aktiv
+  auf `<h2>` (`app/(frontend)/editionen/page.tsx:158`). Card-Höhen werden
+  vom 3:4-Image-Block dominiert, die Title-Asymmetrie ist editorial legitim —
+  Zweig hat halt den längsten Titel. Kein `minHeight`, kein Suffix-Drop,
+  keine Code-Änderung. Branch `chore/silbe-card-title-balance` ungemerged
+  gelöscht.
 
 ### Carry-forward to Phase 9+
 
