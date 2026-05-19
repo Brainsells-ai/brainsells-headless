@@ -13,20 +13,19 @@ import { test, expect } from '@playwright/test';
 // assertions (quote_full, themes, work_title may be empty). Structural
 // rendering + canonical-string byte-identity are strict.
 
-const FLAGSHIP_HANDLE = 'silbe-rilke-geduld-hero-burgundy';
+const FLAGSHIP_HANDLE = 'silbe-rilke-habegeduld';
 
+// Mirrors metafields-manifest CANONICAL_HANDLES (filter:
+// product_type === 'edition' && active === true) — local copy kept
+// inline so test parameterization stays readable. Bump alongside any
+// manifest active-flag flip.
 const CANONICAL_HANDLES = [
-  'silbe-rilke-geduld-hero-burgundy',
   'silbe-rilke-habegeduld',
   'silbe-kafka-axt',
-  'silbe-mann-einsamkeit-hero-charcoal',
-  'silbe-mann-einsamkeit-goldrahmen',
-  'silbe-zweig-memorial-staubrose',
   'silbe-zweig-dir-der-du',
-  'silbe-ee-aphorismus-goldrahmen',
 ] as const;
 
-test.describe('PDP — flagship rendering (silbe-rilke-geduld-hero-burgundy)', () => {
+test.describe('PDP — flagship rendering (silbe-rilke-habegeduld)', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(`/editionen/${FLAGSHIP_HANDLE}`);
   });
@@ -134,7 +133,7 @@ test.describe('PDP — flagship rendering (silbe-rilke-geduld-hero-burgundy)', (
   });
 });
 
-test.describe('PDP — smoke across all 8 canonical handles', () => {
+test.describe('PDP — smoke across all active canonical handles', () => {
   for (const handle of CANONICAL_HANDLES) {
     test(`${handle} renders 200 and has breadcrumbs @pdp-smoke`, async ({ page }) => {
       const res = await page.goto(`/editionen/${handle}`);

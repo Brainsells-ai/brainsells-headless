@@ -59,6 +59,13 @@ export type ProductType = 'edition' | 'postcard_set' | 'bundle';
 export type SkuManifest = {
   handle: string;
   product_type: ProductType;
+  // true → SKU is Active in Shopify and gets shipped to /editionen +
+  // generateStaticParams PDP whitelist. false → manifest carries the metadata
+  // (TODO_AUTHOR notes, future editorial work) but the SKU is not published
+  // yet, so excluding it from CANONICAL_HANDLES prevents 404s in @pdp-smoke
+  // tests and empty cards on the listing. Promote to true when Shopify Admin
+  // flips the product to Active.
+  active: boolean;
   // null permitted only when product_type === 'bundle'. Type-constrained:
   // only canonical voices accepted, archived voices fail at compile time.
   voice: CanonicalVoice | null;
@@ -81,13 +88,17 @@ export type SkuManifest = {
   editorial_notes?: string;
 };
 
-// 13 Phase-2-canonical SKUs per docs/asset-mapping.md §2.3. Source of
-// truth for generateStaticParams whitelist.
+// 13 Phase-2 manifest SKUs per docs/asset-mapping.md §2.3. The
+// CANONICAL_HANDLES whitelist filters this list to product_type
+// 'edition' && active === true — non-active entries persist for
+// editorial work-in-progress (TODO_AUTHOR notes) but don't ship to
+// /editionen or PDP routes until promoted.
 export const EDITIONS: readonly SkuManifest[] = [
   // ─── Rilke ─────────────────────────────────────────────────────────────
   {
     handle: 'silbe-rilke-geduld-hero-burgundy',
     product_type: 'edition',
+    active: false,
     voice: 'rilke',
     work_title: '›Briefe an einen jungen Dichter‹',
     work_year: 1903,
@@ -103,6 +114,7 @@ export const EDITIONS: readonly SkuManifest[] = [
   {
     handle: 'silbe-rilke-habegeduld',
     product_type: 'edition',
+    active: true,
     voice: 'rilke',
     work_title: '›Briefe an einen jungen Dichter‹',
     work_year: 1903,
@@ -117,6 +129,7 @@ export const EDITIONS: readonly SkuManifest[] = [
   {
     handle: 'silbe-kafka-axt',
     product_type: 'edition',
+    active: true,
     voice: 'kafka',
     work_title: '›Brief an Oskar Pollak‹',
     work_year: 1904,
@@ -134,6 +147,7 @@ export const EDITIONS: readonly SkuManifest[] = [
   {
     handle: 'silbe-mann-einsamkeit-hero-charcoal',
     product_type: 'edition',
+    active: false,
     voice: 'mann',
     work_title: { TODO_AUTHOR: 'Einsamkeit-Quote — Quelle ›Der Tod in Venedig‹ (1912), ›Tonio Kröger‹ (1903) oder anderes? Shopify-Title aktuell „Einsamkeit zeitigt das Originale“ → suggestiert ›Tonio Kröger‹ oder Notizbuch-Quelle.' },
     work_year: { TODO_AUTHOR: 'Werk-Jahr abhängig von Quelle (siehe work_title TODO)' },
@@ -147,6 +161,7 @@ export const EDITIONS: readonly SkuManifest[] = [
   {
     handle: 'silbe-mann-einsamkeit-goldrahmen',
     product_type: 'edition',
+    active: false,
     voice: 'mann',
     work_title: { TODO_AUTHOR: 'Siehe silbe-mann-einsamkeit-hero-charcoal' },
     work_year: { TODO_AUTHOR: 'Siehe silbe-mann-einsamkeit-hero-charcoal' },
@@ -162,6 +177,7 @@ export const EDITIONS: readonly SkuManifest[] = [
   {
     handle: 'silbe-zweig-memorial-staubrose',
     product_type: 'edition',
+    active: false,
     voice: 'zweig',
     work_title: { TODO_AUTHOR: 'Memorial-Quote-Quelle — ›Sternstunden der Menschheit‹ (1927), ›Die Welt von Gestern‹ (1942), oder Brief/Essay?' },
     work_year: { TODO_AUTHOR: 'Abhängig von work_title' },
@@ -175,6 +191,7 @@ export const EDITIONS: readonly SkuManifest[] = [
   {
     handle: 'silbe-zweig-dir-der-du',
     product_type: 'edition',
+    active: true,
     voice: 'zweig',
     work_title: '›Brief einer Unbekannten‹',
     work_year: 1922,
@@ -189,6 +206,7 @@ export const EDITIONS: readonly SkuManifest[] = [
   {
     handle: 'silbe-ee-aphorismus-goldrahmen',
     product_type: 'edition',
+    active: false,
     voice: 'ebner-eschenbach',
     work_title: '›Aphorismen‹',
     work_year: 1880,
@@ -203,6 +221,7 @@ export const EDITIONS: readonly SkuManifest[] = [
   {
     handle: 'silbe-stempel-rilke-postkarten-3er',
     product_type: 'postcard_set',
+    active: false,
     voice: 'rilke',
     work_title: { TODO_AUTHOR: 'Postkarten-3er-Set — drei separate Quotes pro Karte. work_title-Strategie: gemeinsamer Werk-Titel falls alle aus einem Werk, sonst leer-lassen + Karten-Liste in editorial_notes' },
     work_year: { TODO_AUTHOR: 'Abhängig von work_title-Strategie' },
@@ -216,6 +235,7 @@ export const EDITIONS: readonly SkuManifest[] = [
   {
     handle: 'silbe-stempel-kafka-postkarten-3er',
     product_type: 'postcard_set',
+    active: false,
     voice: 'kafka',
     work_title: { TODO_AUTHOR: 'Siehe silbe-stempel-rilke-postkarten-3er' },
     work_year: { TODO_AUTHOR: 'Siehe silbe-stempel-rilke-postkarten-3er' },
@@ -229,6 +249,7 @@ export const EDITIONS: readonly SkuManifest[] = [
   {
     handle: 'silbe-stempel-zweig-postkarten-3er',
     product_type: 'postcard_set',
+    active: false,
     voice: 'zweig',
     work_title: { TODO_AUTHOR: 'Siehe silbe-stempel-rilke-postkarten-3er' },
     work_year: { TODO_AUTHOR: 'Siehe silbe-stempel-rilke-postkarten-3er' },
@@ -244,6 +265,7 @@ export const EDITIONS: readonly SkuManifest[] = [
   {
     handle: 'bundle-goldrahmen-trio',
     product_type: 'bundle',
+    active: false,
     voice: null,
     work_title: { TODO_AUTHOR: 'Bundle umfasst 3 Editionen — voice + work-Strategie: leer (bundle-Marker), oder Repräsentativ-Voice für Search/JSON-LD?' },
     work_year: { TODO_AUTHOR: 'Bundle hat kein einzelnes Jahr' },
@@ -259,6 +281,7 @@ export const EDITIONS: readonly SkuManifest[] = [
   {
     handle: 'bundle-stempel-sammler',
     product_type: 'bundle',
+    active: false,
     voice: null,
     work_title: { TODO_AUTHOR: 'Bundle umfasst mehrere Postkarten-Sets — siehe bundle-goldrahmen-trio' },
     work_year: { TODO_AUTHOR: 'Bundle hat kein einzelnes Jahr' },
@@ -273,11 +296,19 @@ export const EDITIONS: readonly SkuManifest[] = [
   },
 ] as const;
 
-// Whitelist for generateStaticParams. Filters EDITIONS to product_type
-// 'edition' — postcard_set + bundle SKUs need dedicated render templates
-// (Phase 4 follow-ups) and are excluded from Phase 3 PDP whitelist.
+// Whitelist for generateStaticParams. Filters EDITIONS on TWO axes:
+//   - product_type === 'edition' (postcard_set + bundle need dedicated
+//     render templates, deferred Phase-4 follow-ups)
+//   - active === true (the SKU is Active in Shopify and ready to ship —
+//     non-active SKUs carry TODO_AUTHOR metadata for future editorial
+//     work but render as 404 since Shopify has no product for them)
+//
+// 2026-05-19 MVP state: 3 active editions
+// (silbe-rilke-habegeduld, silbe-kafka-axt, silbe-zweig-dir-der-du).
+// Flip active: true on a manifest entry to publish — no separate
+// allowlist to maintain.
 export const CANONICAL_HANDLES: readonly string[] = EDITIONS
-  .filter((e) => e.product_type === 'edition')
+  .filter((e) => e.product_type === 'edition' && e.active === true)
   .map((e) => e.handle);
 
 // Full unfiltered handle list — used by validation scripts and seed-values
