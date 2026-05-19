@@ -6,9 +6,9 @@
 // hier überschreibt nur die Karten-Visuals mit dem lokalen R8-Composite.
 
 export type FeaturedHandle =
-  | 'silbe-rilke-geduld-goldrahmen'
-  | 'silbe-kafka-axt-goldrahmen'
-  | 'silbe-zweig-unbekannte-goldrahmen';
+  | 'silbe-rilke-habegeduld'
+  | 'silbe-kafka-axt'
+  | 'silbe-zweig-dir-der-du';
 
 export type FeaturedEntry = {
   handle: FeaturedHandle;
@@ -18,17 +18,17 @@ export type FeaturedEntry = {
 
 export const HOMEPAGE_FEATURED: readonly FeaturedEntry[] = [
   {
-    handle: 'silbe-rilke-geduld-goldrahmen',
+    handle: 'silbe-rilke-habegeduld',
     image: '/images/sku-02-rilke-habegeduld.jpg',
     alt: 'SILBE Rilke-Edition „Habe Geduld“ — gerahmt in einem Wiener Schreibzimmer',
   },
   {
-    handle: 'silbe-kafka-axt-goldrahmen',
+    handle: 'silbe-kafka-axt',
     image: '/images/sku-06-kafka-axt.jpg',
     alt: 'SILBE Kafka-Edition „Ein Buch muss die Axt sein“ — gerahmt in einem dunklen Salon',
   },
   {
-    handle: 'silbe-zweig-unbekannte-goldrahmen',
+    handle: 'silbe-zweig-dir-der-du',
     image: '/images/sku-01-zweig-dir.jpg',
     alt: 'SILBE Zweig-Edition „Dir, der Du mich nie gekannt“ — gerahmt im Wiener Café',
   },
