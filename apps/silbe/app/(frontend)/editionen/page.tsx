@@ -12,7 +12,7 @@ export const revalidate = 3600;
 export const metadata: Metadata = {
   title: 'Editionen',
   description:
-    'Alle SILBE-Editionen — Worte deutschsprachiger Klassiker als Kunstdrucke auf hochweißem Premium-Papier, 200 g/m², matt, säurefrei.',
+    'SILBE-Editionen — Worte deutschsprachiger Klassiker als Kunstdrucke auf hochweißem Premium-Papier, 200 g/m², matt, säurefrei.',
   alternates: { canonical: '/editionen' },
 };
 
@@ -42,7 +42,7 @@ export default async function EditionenPage() {
 
   return (
     <section
-      aria-label="Alle Editionen"
+      aria-label="Editionen"
       style={{
         backgroundColor: 'var(--color-cream)',
         paddingBlock: 'clamp(80px, 9vw, 144px)',
@@ -71,7 +71,7 @@ export default async function EditionenPage() {
               textWrap: 'balance',
             }}
           >
-            Alle Editionen.
+            Editionen.
           </h1>
           <p
             lang="de"
@@ -100,8 +100,7 @@ export default async function EditionenPage() {
               margin: 0,
             }}
           >
-            Die Editionen sind in Vorbereitung. In Kürze finden Sie hier die
-            Auswahl der fünf Stimmen.
+            Die Editionen sind in Vorbereitung.
           </p>
         ) : (
           <ul

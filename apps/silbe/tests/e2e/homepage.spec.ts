@@ -21,7 +21,7 @@ test.describe('section 1 — hero', () => {
       hero.getByText('›Briefe an einen jungen Dichter‹ · 1903'),
     ).toBeVisible();
     await expect(
-      hero.getByRole('link', { name: /Alle Editionen ansehen/ }),
+      hero.getByRole('link', { name: /Editionen ansehen/ }),
     ).toBeVisible();
 
     const heroImg = hero.getByRole('img');
@@ -66,7 +66,7 @@ test.describe('section 3 — featured editions', () => {
       name: /(Ausgewählte Editionen|Editionen — in Vorbereitung)/,
     });
     await expect(section).toBeVisible();
-    await expect(section.getByRole('link', { name: /Alle Editionen ansehen/ })).toBeVisible();
+    await expect(section.getByRole('link', { name: /Editionen ansehen/ })).toBeVisible();
   });
 
   test('price format uses Euro-first NBSP layout when present @featured', async ({ page }) => {

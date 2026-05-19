@@ -14,7 +14,7 @@ test.describe('editionen listing @editionen', () => {
 
     // Page header (CapsLabel + H1 + intro)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-      'Alle Editionen.',
+      'Editionen.',
     );
     await expect(
       page.getByText(/Worte deutschsprachiger Klassiker als Kunstdrucke/),

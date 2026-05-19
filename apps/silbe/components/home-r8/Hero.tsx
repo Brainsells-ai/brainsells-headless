@@ -117,7 +117,7 @@ export function Hero() {
             transition: 'gap 250ms ease-out, opacity 250ms ease-out',
           }}
         >
-          Alle Editionen ansehen
+          Editionen ansehen
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
             <path
               d="M4 10 H15 M11 6 L15 10 L11 14"
