@@ -38,53 +38,74 @@ export type WiderrufOrder = {
   currencyCode: string;
 };
 
-type OrderLookupResponse = {
-  orders: {
+type OrderNode = {
+  id: string;
+  name: string;
+  email: string | null;
+  createdAt: string;
+  tags: string[];
+  currentTotalPriceSet: { shopMoney: { amount: string; currencyCode: string } };
+  lineItems: {
     edges: {
       node: {
-        id: string;
-        name: string;
-        email: string | null;
-        createdAt: string;
-        tags: string[];
-        currentTotalPriceSet: { shopMoney: { amount: string; currencyCode: string } };
-        lineItems: {
-          edges: {
-            node: {
-              title: string;
-              quantity: number;
-              originalTotalSet: { shopMoney: { amount: string; currencyCode: string } };
-            };
-          }[];
-        };
+        title: string;
+        quantity: number;
+        originalTotalSet: { shopMoney: { amount: string; currencyCode: string } };
       };
     }[];
   };
 };
 
+type OrderLookupResponse = { orders: { edges: { node: OrderNode }[] } };
+type OrderByIdResponse = { order: OrderNode | null };
+
+const ORDER_NODE_FIELDS = /* GraphQL */ `
+  id
+  name
+  email
+  createdAt
+  tags
+  currentTotalPriceSet { shopMoney { amount currencyCode } }
+  lineItems(first: 50) {
+    edges {
+      node {
+        title
+        quantity
+        originalTotalSet { shopMoney { amount currencyCode } }
+      }
+    }
+  }
+`;
+
+function mapOrderNode(node: OrderNode): WiderrufOrder {
+  return {
+    id: node.id,
+    name: node.name,
+    email: (node.email ?? '').trim().toLowerCase(),
+    createdAt: node.createdAt,
+    tags: node.tags ?? [],
+    lineItems: node.lineItems.edges.map((li) => ({
+      title: li.node.title,
+      quantity: li.node.quantity,
+      amount: li.node.originalTotalSet.shopMoney.amount,
+      currencyCode: li.node.originalTotalSet.shopMoney.currencyCode,
+    })),
+    totalAmount: node.currentTotalPriceSet.shopMoney.amount,
+    currencyCode: node.currentTotalPriceSet.shopMoney.currencyCode,
+  };
+}
+
 const ORDER_LOOKUP_QUERY = /* GraphQL */ `
   query WiderrufOrderLookup($query: String!) {
     orders(first: 5, query: $query) {
-      edges {
-        node {
-          id
-          name
-          email
-          createdAt
-          tags
-          currentTotalPriceSet { shopMoney { amount currencyCode } }
-          lineItems(first: 50) {
-            edges {
-              node {
-                title
-                quantity
-                originalTotalSet { shopMoney { amount currencyCode } }
-              }
-            }
-          }
-        }
-      }
+      edges { node { ${ORDER_NODE_FIELDS} } }
     }
+  }
+`;
+
+const ORDER_BY_ID_QUERY = /* GraphQL */ `
+  query WiderrufOrderById($id: ID!) {
+    order(id: $id) { ${ORDER_NODE_FIELDS} }
   }
 `;
 
@@ -108,25 +129,19 @@ export async function lookupOrderByNumberAndEmail(
   });
 
   for (const edge of data.orders.edges) {
-    const node = edge.node;
-    if ((node.email ?? '').trim().toLowerCase() !== normalizedEmail) continue;
-
-    return {
-      id: node.id,
-      name: node.name,
-      email: normalizedEmail,
-      createdAt: node.createdAt,
-      tags: node.tags ?? [],
-      lineItems: node.lineItems.edges.map((li) => ({
-        title: li.node.title,
-        quantity: li.node.quantity,
-        amount: li.node.originalTotalSet.shopMoney.amount,
-        currencyCode: li.node.originalTotalSet.shopMoney.currencyCode,
-      })),
-      totalAmount: node.currentTotalPriceSet.shopMoney.amount,
-      currencyCode: node.currentTotalPriceSet.shopMoney.currencyCode,
-    };
+    if ((edge.node.email ?? '').trim().toLowerCase() !== normalizedEmail) continue;
+    return mapOrderNode(edge.node);
   }
 
   return null;
+}
+
+/**
+ * Fetches an order by its GID — used on the confirm step, where the email was
+ * already proven by the signed token, to render fresh order details.
+ * Returns null if the order no longer exists. Throws only on Admin API failure.
+ */
+export async function getWiderrufOrderById(orderId: string): Promise<WiderrufOrder | null> {
+  const data = await shopifyAdminFetch<OrderByIdResponse>(ORDER_BY_ID_QUERY, { id: orderId });
+  return data.order ? mapOrderNode(data.order) : null;
 }
