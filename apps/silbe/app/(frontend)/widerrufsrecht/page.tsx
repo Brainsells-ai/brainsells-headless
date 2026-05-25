@@ -117,6 +117,26 @@ export default function WiderrufsrechtPage() {
         absenden.
       </p>
 
+      <h2 style={h2Style}>Elektronische Widerrufsfunktion</h2>
+      <p style={pStyle}>
+        Sie können Ihren Vertrag auch elektronisch über die Widerrufsfunktion
+        unter{' '}
+        <Link href="/widerruf" style={linkStyle}>
+          silbe.at/widerruf
+        </Link>{' '}
+        widerrufen. Hierbei werden Sie durch ein zweistufiges Verfahren geführt:
+      </p>
+      <ol style={{ ...pStyle, paddingLeft: '1.4em' }}>
+        <li>Eingabe Ihrer Bestellnummer und E-Mail-Adresse</li>
+        <li>Bestätigung des Widerrufs auf der nachfolgenden Seite</li>
+      </ol>
+      <p style={pStyle}>
+        Nach erfolgtem Widerruf erhalten Sie unverzüglich eine
+        Eingangsbestätigung mit Zeitstempel per E-Mail. Die Erklärung gilt mit
+        Klick auf die Schaltfläche „Widerruf bestätigen“ als zugegangen
+        (§ 356a Abs. 5 BGB).
+      </p>
+
       <h2 style={h2Style}>Folgen des Widerrufs</h2>
       <p style={pStyle}>
         Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen,
@@ -172,7 +192,7 @@ export default function WiderrufsrechtPage() {
       </p>
 
       <hr style={hrStyle} />
-      <p style={standStyle}>Stand: 13. Mai 2026</p>
+      <p style={standStyle}>Stand: 25. Mai 2026</p>
     </article>
   );
 }

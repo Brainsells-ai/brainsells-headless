@@ -4,6 +4,7 @@ import { NewsletterForm } from './NewsletterForm';
 
 const LEGAL_LINKS = [
   { href: '/impressum', label: 'Impressum' },
+  { href: '/widerruf', label: 'Widerruf' },
   { href: '/agb', label: 'AGB' },
   { href: '/datenschutz', label: 'Datenschutz' },
   { href: '/widerrufsrecht', label: 'Widerrufsrecht' },

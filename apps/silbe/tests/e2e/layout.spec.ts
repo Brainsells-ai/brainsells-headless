@@ -73,6 +73,7 @@ test.describe('footer links', () => {
     // link which would otherwise substring-match "Datenschutz".
     for (const label of [
       'Impressum',
+      'Widerruf',
       'AGB',
       'Datenschutz',
       'Widerrufsformular',
@@ -112,7 +113,10 @@ test.describe('footer links', () => {
     expect(html).not.toContain('href="/werkstatt"');
     expect(html).not.toContain('href="/stimmen"');
     expect(html).not.toContain('href="/bibliothek"');
-    expect(html).not.toMatch(/\/widerruf(?!s)/); // matches /widerruf but not /widerrufsrecht/widerrufsformular
+    // The bare /widerruf route now exists (§ 356a BGB electronic withdrawal),
+    // so assert it positively; the legacy Liquid /pages/widerruf stays dead.
+    expect(html).toMatch(/href="\/widerruf"/);
+    expect(html).not.toMatch(/\/pages\/widerruf/);
   });
 });
 
