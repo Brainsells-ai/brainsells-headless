@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { WiderrufSuccessCard } from '@/components/widerruf/WiderrufSuccessCard';
 
 export const runtime = 'nodejs';
 
@@ -10,7 +11,6 @@ export const metadata: Metadata = {
 };
 
 const ink = 'var(--color-ink)';
-const taupe = 'var(--color-taupe)';
 
 const containerStyle: React.CSSProperties = {
   maxWidth: 'var(--container-narrow, 720px)',
@@ -38,24 +38,6 @@ const pStyle: React.CSSProperties = {
   textWrap: 'pretty',
 };
 
-const idBoxStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-crimson), Georgia, serif',
-  fontSize: '17px',
-  lineHeight: 1.7,
-  color: ink,
-  border: '0.5px solid color-mix(in srgb, var(--color-ink) 20%, transparent)',
-  borderRadius: '2px',
-  padding: '20px 24px',
-  margin: '32px 0',
-};
-
-const addressStyle: React.CSSProperties = {
-  ...pStyle,
-  fontStyle: 'normal',
-  fontSize: '17px',
-  color: taupe,
-};
-
 function pickId(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? '';
   return value ?? '';
@@ -74,26 +56,12 @@ export default async function WiderrufErfolgPage({
 
       <p style={pStyle}>Vielen Dank. Wir haben Ihren Widerruf erhalten.</p>
 
-      {widerrufId ? (
-        <div style={idBoxStyle}>
-          Widerruf-ID: <strong>{widerrufId}</strong>
-        </div>
-      ) : null}
-
       <p style={pStyle}>
         Sie erhalten in Kürze eine Bestätigungs-E-Mail mit allen Details zur Rücksendung. Bitte
-        senden Sie die Edition innerhalb von 14 Tagen zurück an:
+        senden Sie die Edition innerhalb von 14 Tagen zurück an die unten genannte Adresse.
       </p>
 
-      <address style={addressStyle}>
-        Brainsells e.U.
-        <br />
-        Rueppgasse 32/12
-        <br />
-        1020 Wien
-        <br />
-        Österreich
-      </address>
+      <WiderrufSuccessCard widerrufId={widerrufId} />
     </main>
   );
 }

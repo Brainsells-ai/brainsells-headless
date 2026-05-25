@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { WiderrufLookupForm } from '@/components/widerruf/WiderrufLookupForm';
 
 // node:crypto runs in the lookup action invoked from this page; Server Actions
 // inherit the page segment's runtime, so pin Node here (not Edge).
@@ -58,8 +59,7 @@ export default function WiderrufPage() {
         Bestellung an.
       </p>
 
-      {/* TODO Tag 2: <WiderrufLookupForm action={lookupOrderAction} /> — Client-Island mit
-          useActionState, Feldern „Bestellnummer“ + „E-Mail-Adresse“ und Submit „Vertrag widerrufen“. */}
+      <WiderrufLookupForm />
 
       <p style={hintStyle}>
         Alternativ können Sie Ihren Widerruf auch per E-Mail an{' '}
