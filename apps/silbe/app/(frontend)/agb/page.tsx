@@ -165,6 +165,15 @@ export default function AgbPage() {
         </Link>
         .
       </p>
+      <p style={pStyle}>
+        <strong>Elektronische Widerrufsmöglichkeit:</strong> Sie können Ihren
+        Widerruf auch elektronisch über unsere Widerrufsfunktion unter{' '}
+        <Link href="/widerruf" style={linkStyle}>
+          silbe.at/widerruf
+        </Link>{' '}
+        ausüben. Die Erklärung gilt mit Klick auf die Schaltfläche „Widerruf
+        bestätigen“ als zugegangen (§ 356a Abs. 5 BGB).
+      </p>
 
       <h2 style={h2Style}>§ 8 Mängelhaftung</h2>
       <p style={pStyle}>
