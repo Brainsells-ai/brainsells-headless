@@ -8,23 +8,29 @@ type LegalRoute = {
   path: string;
   title: string; // expected window/document title (root layout template appends " · SILBE")
   h1: string;
+  stand: string; // expected "Stand: …" date — bumped per page when its content is revised
 };
 
+// Stand dates are per-page: the § 356a Widerruf sprint revised impressum, agb
+// and widerrufsrecht (→ 25. Mai 2026); the remaining four are unchanged
+// (13. Mai 2026) until the deferred corpus-wide bump.
 const LEGAL_ROUTES: LegalRoute[] = [
-  { path: '/impressum', title: 'Impressum', h1: 'Impressum' },
-  { path: '/agb', title: 'AGB', h1: 'Allgemeine Geschäftsbedingungen' },
-  { path: '/datenschutz', title: 'Datenschutz', h1: 'Datenschutzerklärung' },
-  { path: '/widerrufsrecht', title: 'Widerrufsrecht', h1: 'Widerrufsrecht' },
+  { path: '/impressum', title: 'Impressum', h1: 'Impressum', stand: 'Stand: 25. Mai 2026' },
+  { path: '/agb', title: 'AGB', h1: 'Allgemeine Geschäftsbedingungen', stand: 'Stand: 25. Mai 2026' },
+  { path: '/datenschutz', title: 'Datenschutz', h1: 'Datenschutzerklärung', stand: 'Stand: 13. Mai 2026' },
+  { path: '/widerrufsrecht', title: 'Widerrufsrecht', h1: 'Widerrufsrecht', stand: 'Stand: 25. Mai 2026' },
   {
     path: '/widerrufsformular',
     title: 'Widerrufsformular',
     h1: 'Muster-Widerrufsformular',
+    stand: 'Stand: 13. Mai 2026',
   },
-  { path: '/versand', title: 'Versand', h1: 'Versand und Lieferung' },
+  { path: '/versand', title: 'Versand', h1: 'Versand und Lieferung', stand: 'Stand: 13. Mai 2026' },
   {
     path: '/cookie-einstellungen',
     title: 'Cookie-Einstellungen',
     h1: 'Cookie-Einstellungen',
+    stand: 'Stand: 13. Mai 2026',
   },
 ];
 
@@ -44,11 +50,9 @@ test.describe('legal pages @legal', () => {
       // resolve to "<title> · SILBE".
       await expect(page).toHaveTitle(`${route.title} · SILBE`);
 
-      // Every legal page footer is "Stand: 13. Mai 2026" — content
+      // Each legal page footer carries its per-page "Stand: …" date — content
       // canary that the stale-date placeholder hasn't slipped in.
-      await expect(
-        page.getByRole('main').getByText('Stand: 13. Mai 2026'),
-      ).toBeVisible();
+      await expect(page.getByRole('main').getByText(route.stand)).toBeVisible();
     });
   }
 
