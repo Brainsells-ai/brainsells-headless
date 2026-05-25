@@ -11,26 +11,25 @@ type LegalRoute = {
   stand: string; // expected "Stand: …" date — bumped per page when its content is revised
 };
 
-// Stand dates are per-page: the § 356a Widerruf sprint revised impressum, agb
-// and widerrufsrecht (→ 25. Mai 2026); the remaining four are unchanged
-// (13. Mai 2026) until the deferred corpus-wide bump.
+// Stand dates are per-page. The § 356a Widerruf sprint completed a corpus-wide
+// bump — all seven legal pages now carry Stand: 25. Mai 2026.
 const LEGAL_ROUTES: LegalRoute[] = [
   { path: '/impressum', title: 'Impressum', h1: 'Impressum', stand: 'Stand: 25. Mai 2026' },
   { path: '/agb', title: 'AGB', h1: 'Allgemeine Geschäftsbedingungen', stand: 'Stand: 25. Mai 2026' },
-  { path: '/datenschutz', title: 'Datenschutz', h1: 'Datenschutzerklärung', stand: 'Stand: 13. Mai 2026' },
+  { path: '/datenschutz', title: 'Datenschutz', h1: 'Datenschutzerklärung', stand: 'Stand: 25. Mai 2026' },
   { path: '/widerrufsrecht', title: 'Widerrufsrecht', h1: 'Widerrufsrecht', stand: 'Stand: 25. Mai 2026' },
   {
     path: '/widerrufsformular',
     title: 'Widerrufsformular',
     h1: 'Muster-Widerrufsformular',
-    stand: 'Stand: 13. Mai 2026',
+    stand: 'Stand: 25. Mai 2026',
   },
-  { path: '/versand', title: 'Versand', h1: 'Versand und Lieferung', stand: 'Stand: 13. Mai 2026' },
+  { path: '/versand', title: 'Versand', h1: 'Versand und Lieferung', stand: 'Stand: 25. Mai 2026' },
   {
     path: '/cookie-einstellungen',
     title: 'Cookie-Einstellungen',
     h1: 'Cookie-Einstellungen',
-    stand: 'Stand: 13. Mai 2026',
+    stand: 'Stand: 25. Mai 2026',
   },
 ];
 
