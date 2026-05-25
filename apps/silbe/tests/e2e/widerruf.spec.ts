@@ -20,19 +20,23 @@ test.describe('Widerruf — Stufe 1 (/widerruf)', () => {
     await page.fill('[name="orderNumber"]', 'abc');
     await page.fill('[name="email"]', 'test@example.com');
     await page.getByRole('button', { name: 'Vertrag widerrufen' }).click();
-    await expect(page.getByRole('alert')).toContainText(/gültige Bestellnummer/i);
+    // Scope to the message text — Next injects its own empty role="alert" route announcer.
+    await expect(page.getByText(/gültige Bestellnummer/i)).toBeVisible();
   });
 
   test('weist auf alternativen Widerruf per E-Mail / Brief hin', async ({ page }) => {
     await page.goto('/widerruf');
-    await expect(page.getByText(/hallo@silbe\.at/)).toBeVisible();
+    // Scope to main — the footer also carries a hallo@silbe.at contact link.
+    await expect(
+      page.getByRole('main').getByRole('link', { name: 'hallo@silbe.at' }),
+    ).toBeVisible();
   });
 });
 
 test.describe('Widerruf — Stufe 2 (/widerruf/bestaetigen)', () => {
   test('ungültiger Token zeigt generische Fehlermeldung', async ({ page }) => {
     await page.goto('/widerruf/bestaetigen?token=invalid');
-    await expect(page.getByText(/ungültig|abgelaufen/i)).toBeVisible();
+    await expect(page.getByRole('heading', { name: /ungültig|abgelaufen/i })).toBeVisible();
   });
 
   // Requires WIDERRUF_TOKEN_SECRET + a real order; run against a Vercel Preview.
