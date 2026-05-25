@@ -1,6 +1,6 @@
 // Klaviyo event tracking for the § 356a BGB Widerruf flow.
 //
-// Companion to lib/klaviyo.ts (newsletter subscription). This module fires the
+// Companion to lib/klaviyo.ts (newsletter signup). This module fires the
 // `Widerruf Eingegangen` metric, which a LIVE Klaviyo flow ("Widerruf
 // Bestätigung") listens on to send the customer their confirmation e-mail.
 // The metric + flow + template already exist in Klaviyo — this code only has
