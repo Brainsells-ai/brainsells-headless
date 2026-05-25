@@ -242,7 +242,7 @@ export default function AgbPage() {
       </p>
 
       <hr style={hrStyle} />
-      <p style={standStyle}>Stand: 13. Mai 2026</p>
+      <p style={standStyle}>Stand: 25. Mai 2026</p>
     </article>
   );
 }
