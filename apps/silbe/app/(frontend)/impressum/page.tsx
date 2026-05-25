@@ -82,7 +82,7 @@ export default function ImpressumPage() {
         Österreich
       </address>
       <p style={pStyle}>
-        <strong>Inhaber:</strong> [INHABER LAUT FIRMENBUCH]
+        <strong>Inhaber:</strong> Aleks Nestorović
         <br />
         <strong>E-Mail:</strong>{' '}
         <a href="mailto:hallo@silbe.at" style={{ color: ink }}>
@@ -94,7 +94,7 @@ export default function ImpressumPage() {
       <p style={pStyle}>
         <strong>UID-Nummer:</strong> ATU83140245
         <br />
-        <strong>Firmenbuchnummer:</strong> Eintragung in Bearbeitung
+        <strong>Firmenbuchnummer:</strong> FN 678136i
         <br />
         <strong>Firmenbuchgericht:</strong> Handelsgericht Wien
       </p>
@@ -138,7 +138,7 @@ export default function ImpressumPage() {
       </p>
 
       <hr style={hrStyle} />
-      <p style={standStyle}>Stand: 13. Mai 2026</p>
+      <p style={standStyle}>Stand: 25. Mai 2026</p>
     </article>
   );
 }
