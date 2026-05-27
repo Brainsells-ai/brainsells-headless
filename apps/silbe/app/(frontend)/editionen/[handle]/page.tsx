@@ -4,6 +4,8 @@ import type { Metadata } from 'next';
 import { getProductByHandle, getAllProductHandles } from '@/lib/shopify-queries';
 import { getEditorialEssayBySlug } from '@/lib/payload-queries';
 import { EDITIONS, isTodo } from '@/scripts/metafields-manifest';
+import { JsonLd } from '@/components/seo/JsonLd';
+import { productSchema, breadcrumbSchema } from '@/components/seo/schemas';
 import { Breadcrumbs } from '@/components/product/Breadcrumbs';
 import { Hero } from '@/components/product/Hero';
 import { MaterialSpecs } from '@/components/product/MaterialSpecs';
@@ -57,6 +59,16 @@ export default async function ProductPage({
 
   return (
     <article>
+      <JsonLd
+        data={[
+          productSchema(product, `/editionen/${handle}`),
+          breadcrumbSchema([
+            { name: 'Home', path: '/' },
+            { name: 'Editionen', path: '/editionen' },
+            { name: product.title, path: `/editionen/${handle}` },
+          ]),
+        ]}
+      />
       <Breadcrumbs productTitle={product.title} />
       <Hero product={product} />
       <MaterialSpecs product={product} />

@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { JsonLd } from '@/components/seo/JsonLd';
+import { organizationSchema, websiteSchema } from '@/components/seo/schemas';
 import { Hero } from '@/components/home-r8/Hero';
 import { EditorialStatement } from '@/components/home-r8/EditorialStatement';
 import { FeaturedEditions } from '@/components/home-r8/FeaturedEditions';
@@ -23,6 +25,7 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <>
+      <JsonLd data={[organizationSchema(), websiteSchema()]} />
       <Hero />
       <EditorialStatement />
       <FeaturedEditions />
