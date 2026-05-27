@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { CapsLabel } from '@/components/primitives/CapsLabel';
+import { JsonLd } from '@/components/seo/JsonLd';
+import { breadcrumbSchema } from '@/components/seo/schemas';
 import {
   getAllEditionsSummary,
   type SummaryProduct,
@@ -48,6 +50,12 @@ export default async function EditionenPage() {
         paddingBlock: 'clamp(80px, 9vw, 144px)',
       }}
     >
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: 'Home', path: '/' },
+          { name: 'Editionen', path: '/editionen' },
+        ])}
+      />
       <div
         style={{
           maxWidth: 'var(--container-wide, 1440px)',
