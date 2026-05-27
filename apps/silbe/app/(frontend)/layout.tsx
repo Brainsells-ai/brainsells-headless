@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'de_AT',
     siteName: 'SILBE',
-    images: [{ url: '/og/five-klassiker.png', width: 1200, height: 630 }],
+    images: [{ url: '/og/og-five-klassiker-a.png', width: 1200, height: 630 }],
   },
   twitter: { card: 'summary_large_image' },
 };
