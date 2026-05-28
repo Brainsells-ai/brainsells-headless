@@ -6,14 +6,20 @@
 // metadata) runs server-side. Fallback to the production origin keeps Preview
 // and local builds rendering valid absolute URLs even before the env var is
 // wired.
+//
+// Evaluated lazily per call, not at module import time: scripts that load
+// .env.local AFTER importing this module (e.g. register-webhooks.ts) would
+// otherwise read the env var before dotenv populated it and silently fall
+// back to silbe.at.
 
-export const SITE_URL = new URL(
-  process.env.METADATA_BASE_URL ?? 'https://silbe.at',
-);
+function siteUrl(): URL {
+  return new URL(process.env.METADATA_BASE_URL ?? 'https://silbe.at');
+}
 
 // Resolve a path ("/", "/editionen", "/editionen/rilke-…") to an absolute URL
-// against SITE_URL. `new URL(path, base)` normalises leading slashes and
-// collapses accidental doubles, so callers can pass router-style paths verbatim.
+// against the current METADATA_BASE_URL. `new URL(path, base)` normalises
+// leading slashes and collapses accidental doubles, so callers can pass
+// router-style paths verbatim.
 export function canonicalUrl(path = '/'): string {
-  return new URL(path, SITE_URL).toString();
+  return new URL(path, siteUrl()).toString();
 }

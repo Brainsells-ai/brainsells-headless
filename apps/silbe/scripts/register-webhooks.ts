@@ -54,7 +54,7 @@ const CREATE_MUTATION = /* GraphQL */ `
   ) {
     webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
       webhookSubscription { id }
-      userErrors { field message code }
+      userErrors { field message }
     }
   }
 `;
@@ -66,7 +66,7 @@ const UPDATE_MUTATION = /* GraphQL */ `
   ) {
     webhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) {
       webhookSubscription { id }
-      userErrors { field message code }
+      userErrors { field message }
     }
   }
 `;
@@ -83,7 +83,11 @@ type WebhookNode = {
 type ListResponse = {
   webhookSubscriptions: { edges: { node: WebhookNode }[] };
 };
-type UserError = { field: string[] | null; message: string; code: string | null };
+// Note: webhookSubscriptionCreate/Update return the generic UserError type,
+// which exposes only `field` and `message` — no `code`. Specialised UserError
+// subtypes (e.g. MetafieldsSetUserError) do carry `code`, but the webhook
+// mutations do not.
+type UserError = { field: string[] | null; message: string };
 type CreateResponse = {
   webhookSubscriptionCreate: {
     webhookSubscription: { id: string } | null;
@@ -98,7 +102,9 @@ type UpdateResponse = {
 };
 
 function userErrorsToString(errs: UserError[]): string {
-  return errs.map((e) => `${e.code ?? 'ERR'}: ${e.message}`).join(', ');
+  return errs
+    .map((e) => `${e.field?.join('.') ?? 'ERR'}: ${e.message}`)
+    .join(', ');
 }
 
 async function main(): Promise<void> {
