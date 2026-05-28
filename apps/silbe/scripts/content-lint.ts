@@ -58,6 +58,9 @@ const SELF_EXEMPT = new Set([
   // "profile-subscription-bulk-create-jobs" and JSON field "subscriptions"
   // are API surface, not user-facing copy.
   path.join('lib', 'klaviyo.ts'),
+  // Shopify Admin GraphQL identifiers: webhookSubscription*, ORDERS_CREATE
+  // topic enum, etc. are API surface, not user-facing copy.
+  path.join('scripts', 'register-webhooks.ts'),
 ]);
 
 type Finding = { file: string; line: number; col: number; pattern: string; reason: string; excerpt: string };
