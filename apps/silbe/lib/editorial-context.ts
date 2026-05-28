@@ -8,15 +8,21 @@
 //
 // One Admin GraphQL roundtrip per webhook fetches every distinct product in
 // the order. Quantity>1 / multi-variant-of-same-product collapse to one Items
-// entry per product. Edition vs non-edition is discriminated by
-// `productType === 'edition'` (datengetrieben, brand-agnostisch — same logic
-// works for future SILBE-style brands).
+// entry per product.
+//
+// Discriminator (Merlin decision, 2026-05-28): presence of a non-empty
+// silbe.editorial_context metafield. NOT productType — that field is free-text
+// in Shopify and already inconsistent in this shop (Bundle / Poster /
+// Postkarten-Set / Postkartenset / Print Material / Tote). Any typo would
+// silently break the mail flow. Brief-presence = control = content: one
+// editorial pflegestelle, no redundancy. Brand-agnostic for the blueprint —
+// new brands need only set the metafield, no type schema.
 //
 // fail-loud matrix:
-//   - editorial_context missing on an Edition  → throw (seed not run / stale)
-//   - handle missing on an Edition             → throw (can't build pdp_url)
-//   - featuredImage missing on an Edition      → console.warn, image_url=''
-//   - all line-items non-edition (postcards…) → returns [], caller fires no event
+//   - editorial_context missing/empty           → silent skip (not an Edition)
+//   - handle missing on a brief-carrying product → throw (can't build pdp_url)
+//   - featuredImage missing on a brief-carrying product → console.warn, image_url=''
+//   - all line-items briefless (postcards, tote, …) → returns [], caller fires no event
 //
 // Requires Node runtime — pulls Admin token via shopify-admin.ts.
 
@@ -46,7 +52,6 @@ type ProductNode = {
   id: string;
   handle: string | null;
   title: string;
-  productType: string;
   featuredImage: { url: string } | null;
   metafield: { value: string } | null;
 };
@@ -62,7 +67,6 @@ const EDITORIAL_MAIL_CONTEXT_QUERY = /* GraphQL */ `
         id
         handle
         title
-        productType
         featuredImage { url }
         metafield(namespace: "silbe", key: "editorial_context") { value }
       }
@@ -112,26 +116,22 @@ export async function buildEditorialMailItems(
       continue;
     }
 
-    // Non-editions (Bundle, Goldrahmen, postcards) carry no brief by design.
-    if (node.productType !== 'edition') continue;
-
+    // Discriminator: non-empty editorial_context = Edition (and therefore
+    // belongs in the mail). No brief = not an Edition (postcards, bundle,
+    // tote, …) → silent skip. See header comment for the why.
     const briefValue = node.metafield?.value?.trim();
-    if (!briefValue) {
-      throw new Error(
-        `Editorial context missing for Edition "${node.title}" (sku=${context?.sku ?? '?'}, handle=${node.handle ?? '?'}). Run scripts/seed-editorial-briefs.ts.`,
-      );
-    }
+    if (!briefValue) continue;
 
     if (!node.handle) {
       throw new Error(
-        `Product handle missing for Edition "${node.title}" (sku=${context?.sku ?? '?'}) — cannot build pdp_url.`,
+        `Product handle missing for brief-carrying product "${node.title}" (sku=${context?.sku ?? '?'}) — cannot build pdp_url.`,
       );
     }
 
     const imageUrl = node.featuredImage?.url ?? '';
     if (!imageUrl) {
       console.warn(
-        `[editorial-context] featuredImage missing for Edition "${node.title}" (sku=${context?.sku ?? '?'}) — mail will render without image`,
+        `[editorial-context] featuredImage missing for brief-carrying product "${node.title}" (sku=${context?.sku ?? '?'}) — mail will render without image`,
       );
     }
 
