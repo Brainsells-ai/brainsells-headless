@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "lint:content": "tsx scripts/content-lint.ts",
+    "test:unit": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:non-snapshot": "playwright test --grep-invert @snapshot",
     "test:e2e:update": "playwright test --update-snapshots",

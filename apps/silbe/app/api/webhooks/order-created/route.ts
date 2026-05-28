@@ -14,7 +14,6 @@
 // Empty-event case (postcards-only order / no editions) → no event fired,
 // 200 OK, log only.
 
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 import {
   buildEditorialMailItems,
@@ -22,6 +21,7 @@ import {
 } from '@/lib/editorial-context';
 import { signWiderrufToken } from '@/lib/widerruf-token';
 import { trackKlaviyoEvent } from '@/lib/klaviyo-events';
+import { verifyShopifyWebhookHmac } from '@/lib/shopify-webhook-hmac';
 
 export const runtime = 'nodejs';
 
@@ -46,31 +46,19 @@ type ShopifyOrderWebhook = {
   line_items: ShopifyOrderWebhookLineItem[];
 };
 
-function verifyHmac(rawBody: string, sigHeader: string | null): boolean {
-  if (!sigHeader) return false;
-  const secret = process.env.SHOPIFY_CLIENT_SECRET;
-  if (!secret) {
-    console.error(
-      '[order-created] SHOPIFY_CLIENT_SECRET is not set — refusing all requests',
-    );
-    return false;
-  }
-  const expected = createHmac('sha256', secret)
-    .update(rawBody, 'utf8')
-    .digest('base64');
-  const expectedBuf = Buffer.from(expected, 'utf8');
-  const providedBuf = Buffer.from(sigHeader, 'utf8');
-  if (expectedBuf.length !== providedBuf.length) return false;
-  return timingSafeEqual(expectedBuf, providedBuf);
-}
-
 export async function POST(req: NextRequest): Promise<NextResponse> {
   // Raw body MUST be read BEFORE JSON.parse — HMAC verifies the exact bytes
   // Shopify signed, not a re-stringified copy.
   const rawBody = await req.text();
   const sigHeader = req.headers.get('x-shopify-hmac-sha256');
 
-  if (!verifyHmac(rawBody, sigHeader)) {
+  const secret = process.env.SHOPIFY_CLIENT_SECRET;
+  if (!secret) {
+    console.error(
+      '[order-created] SHOPIFY_CLIENT_SECRET is not set — refusing all requests',
+    );
+  }
+  if (!verifyShopifyWebhookHmac(rawBody, sigHeader, secret)) {
     return NextResponse.json({ error: 'Invalid HMAC' }, { status: 401 });
   }
 
