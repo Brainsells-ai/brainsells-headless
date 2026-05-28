@@ -16,6 +16,10 @@ import { shopifyAdminFetch } from '../lib/shopify-admin';
 //   pnpm tsx scripts/seed-editorial-briefs.ts --dry-run
 //   pnpm tsx scripts/seed-editorial-briefs.ts          # live
 //
+// Dry-run still hits the Admin API for handle resolution (read-only) and only
+// skips the metafieldsSet write — so handle-lookup bugs surface before the
+// live run.
+//
 // Auth via shopify-admin.ts (OAuth Client Credentials Grant, 2026-01 Shopify
 // auth migration). Requires SHOPIFY_SHOP + SHOPIFY_CLIENT_ID +
 // SHOPIFY_CLIENT_SECRET in .env.local. The script fails loudly if a handle
@@ -52,9 +56,14 @@ Für SILBE ist dieser Satz eine Übung in editorischer Zurückhaltung: ein Anfan
 
 // ─── GraphQL ──────────────────────────────────────────────────────────────
 
+// Admin API 2026-04 does NOT accept product(handle: ...) — handle lookup on the
+// `product` field is Storefront-API only. Admin-side, the canonical pattern is
+// products(first: 1, query: "handle:...").
 const PRODUCT_ID_BY_HANDLE = /* GraphQL */ `
-  query ProductIdByHandle($handle: String!) {
-    product(handle: $handle) { id }
+  query ProductIdByHandle($query: String!) {
+    products(first: 1, query: $query) {
+      edges { node { id } }
+    }
   }
 `;
 
@@ -67,21 +76,24 @@ const METAFIELDS_SET = /* GraphQL */ `
   }
 `;
 
-type ProductIdByHandleData = { product: { id: string } | null };
+type ProductIdByHandleData = {
+  products: { edges: { node: { id: string } }[] };
+};
 
 async function getProductGid(handle: string): Promise<string> {
   const data = await shopifyAdminFetch<ProductIdByHandleData>(
     PRODUCT_ID_BY_HANDLE,
-    { handle },
+    { query: `handle:${handle}` },
   );
-  if (!data.product) {
+  const node = data.products.edges[0]?.node;
+  if (!node) {
     // Fail-loud: a missing handle means the SKU was renamed/deleted upstream,
     // or the script was run against the wrong shop. Never silently skip.
     throw new Error(
       `Product handle "${handle}" not found in Shopify — refusing to write metafield silently.`,
     );
   }
-  return data.product.id;
+  return node.id;
 }
 
 type MetafieldsSetData = {
@@ -113,33 +125,33 @@ async function setEditorialContext(gid: string, value: string): Promise<void> {
   }
 }
 
-function printDryRun(): void {
-  console.log(`Would set ${NAMESPACE}.${KEY} on ${BRIEFS.length} products:\n`);
-  for (const brief of BRIEFS) {
-    const firstLine = brief.value.slice(0, 90).replace(/\n/g, ' ');
-    console.log(`  · ${brief.handle}`);
-    console.log(`    "${firstLine}…"\n`);
-  }
-  console.log('Dry-run only. Re-run without --dry-run to apply.');
-}
-
 async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
   console.log(`Mode: ${dryRun ? 'DRY-RUN' : 'LIVE'}`);
   console.log(`Target: ${NAMESPACE}.${KEY} (${METAFIELD_TYPE})\n`);
 
   if (dryRun) {
-    printDryRun();
-    return;
+    console.log(
+      `Resolving ${BRIEFS.length} handles via Admin API (read-only) — metafieldsSet writes are skipped.\n`,
+    );
   }
 
   let ok = 0;
   let errored = 0;
   for (const brief of BRIEFS) {
     try {
+      // Handle-lookup runs in BOTH modes — that's the point of the dry-run
+      // extension: catch query-shape bugs (e.g. the 2026-05-28 product(handle:)
+      // regression) before they hit the live run.
       const gid = await getProductGid(brief.handle);
-      await setEditorialContext(gid, brief.value);
-      console.log(`  ✓ ${brief.handle} (${gid})`);
+      if (dryRun) {
+        const firstLine = brief.value.slice(0, 90).replace(/\n/g, ' ');
+        console.log(`  · ${brief.handle} → ${gid}`);
+        console.log(`    "${firstLine}…"\n`);
+      } else {
+        await setEditorialContext(gid, brief.value);
+        console.log(`  ✓ ${brief.handle} (${gid})`);
+      }
       ok++;
     } catch (err) {
       console.error(`  ✗ ${brief.handle}: ${(err as Error).message}`);
@@ -148,6 +160,9 @@ async function main(): Promise<void> {
   }
 
   console.log(`\n---\nOK: ${ok}    Errored: ${errored}`);
+  if (dryRun) {
+    console.log('\nDry-run only. Re-run without --dry-run to apply.');
+  }
   if (errored > 0) process.exit(1);
 }
 
