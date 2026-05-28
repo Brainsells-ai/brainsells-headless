@@ -93,6 +93,12 @@ const DEFINITIONS: Definition[] = [
     type: 'json',
     description: 'JSON-Array mit 5–7 thematischen Tags (z.B. ["Sehnsucht", "Wien", "Geduld"]).',
   },
+  {
+    name: 'Editorial context',
+    key: 'editorial_context',
+    type: 'multi_line_text_field',
+    description: 'Editorial-Brief pro Edition — wird im Klaviyo-Order-Confirmation-Mail als {{ event.editorial_context }} gerendert.',
+  },
 ];
 
 const NAMESPACE = 'silbe';
