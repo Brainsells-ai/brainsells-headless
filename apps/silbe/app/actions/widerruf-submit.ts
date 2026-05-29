@@ -70,6 +70,20 @@ export async function submitWiderrufAction(
     reason: reason || null,
   });
 
+  // 2b. Internes Alert = fail-soft. Eigener Event auf die interne Adresse,
+  //     triggert in Klaviyo einen separaten Flow an das Team. Niemals
+  //     blockierend — der Widerruf ist bereits juristisch zugegangen.
+  const alertEmail = process.env.WIDERRUF_ALERT_EMAIL;
+  if (alertEmail) {
+    await trackKlaviyoEvent('Widerruf Alert Intern', alertEmail, {
+      widerruf_id: widerrufId,
+      order_id: payload.orderId,
+      customer_email: payload.email,
+      timestamp,
+      reason: reason || null,
+    });
+  }
+
   // redirect() throws NEXT_REDIRECT — must stay outside the try above.
   redirect(`/widerruf/erfolg?id=${encodeURIComponent(widerrufId)}`);
 }
