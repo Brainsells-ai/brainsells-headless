@@ -3,6 +3,8 @@ import { Cormorant_Garamond, Crimson_Pro, Inter } from 'next/font/google';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { CartDrawer } from '@/components/cart/CartDrawer';
+import { ConsentProvider } from '@/lib/consent/ConsentProvider';
+import { ConsentBanner } from '@/components/consent/ConsentBanner';
 import './globals.css';
 
 const cormorant = Cormorant_Garamond({
@@ -52,10 +54,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${cormorant.variable} ${crimson.variable} ${inter.variable}`}
     >
       <body className="min-h-screen flex flex-col">
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
-        <CartDrawer />
+        <ConsentProvider>
+          <Header />
+          <main className="flex-1">{children}</main>
+          <Footer />
+          <CartDrawer />
+          <ConsentBanner />
+        </ConsentProvider>
       </body>
     </html>
   );
