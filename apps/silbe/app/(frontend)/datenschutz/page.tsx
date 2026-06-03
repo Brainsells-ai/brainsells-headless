@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Datenschutz',
@@ -141,12 +140,6 @@ export default function DatenschutzPage() {
         Speicherdauer: bis zum Widerruf der Einwilligung.
       </p>
       <p style={pStyle}>
-        <strong>Cookiebot</strong> — Consent-Management. Rechtsgrundlage:
-        berechtigtes Interesse gemäß Art. 6 Abs. 1 lit. f DSGVO an einer
-        rechtskonformen Cookie-Einwilligungsverwaltung. Speicherdauer: 12
-        Monate.
-      </p>
-      <p style={pStyle}>
         <strong>Stripe, Klarna, PayPal</strong> — Zahlungsabwicklung.
         Rechtsgrundlage: Vertragserfüllung gemäß Art. 6 Abs. 1 lit. b
         DSGVO. Speicherdauer: nach Maßgabe der gesetzlichen
@@ -165,15 +158,28 @@ export default function DatenschutzPage() {
         abgeschlossen.
       </p>
 
-      <h2 style={h2Style}>5. Cookies</h2>
+      <h2 style={h2Style}>5. Cookies und vergleichbare Technologien</h2>
       <p style={pStyle}>
-        Wir setzen technisch notwendige Cookies sowie — ausschließlich nach
-        Ihrer Einwilligung — Cookies zu Analyse- und Marketingzwecken ein.
-        Sie können Ihre Einwilligung jederzeit unter{' '}
-        <Link href="/cookie-einstellungen" style={linkStyle}>
-          Cookie-Einstellungen
-        </Link>{' '}
-        anpassen oder widerrufen.
+        Derzeit verwendet diese Website ausschließlich technisch notwendige
+        Speicher-Mechanismen. Aktuell sind auf silbe.at keine Analyse- oder
+        Marketing-Dienste aktiv.
+      </p>
+      <p style={pStyle}>
+        Konkret legen wir im lokalen Browser-Speicher (localStorage) einen
+        Eintrag mit dem Namen „silbe-cart“ ab. Darin wird die
+        Warenkorb-Kennung gespeichert, damit Ihr Warenkorb über
+        Seitenaufrufe hinweg erhalten bleibt. Es werden keine
+        personenbezogenen Daten und keine Bestellinhalte gespeichert; nur
+        eine technische Kennung. Der Eintrag bleibt im Browser bestehen,
+        bis Sie ihn löschen.
+      </p>
+      <p style={pStyle}>
+        Beim Bezahlvorgang werden Sie auf die von Shopify gehostete
+        Checkout-Seite weitergeleitet. Auf dieser Seite setzt Shopify als
+        eigenständiger Verarbeiter eigene, technisch notwendige Cookies
+        (etwa zur Session- und Warenkorb-Zuordnung sowie zum Schutz vor
+        missbräuchlichen Zugriffen). Hinweise zur Datenverarbeitung durch
+        Shopify finden Sie in den Datenschutzhinweisen von Shopify.
       </p>
 
       <h2 style={h2Style}>6. Speicherdauer</h2>
