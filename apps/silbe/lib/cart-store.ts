@@ -17,6 +17,7 @@ import {
   removeCartLine,
   updateCartLine,
 } from './shopify-cart';
+import { trackAddToCart } from './tracking/events';
 
 type CartState = {
   cartId: string | null;
@@ -82,6 +83,11 @@ export const useCartStore = create<CartState>()(
             isOpen: true,
             isLoading: false,
           });
+          // Tracking AFTER the successful mutation: price/title come from the
+          // Shopify-confirmed line. quantity is the delta just added, not the
+          // (possibly cumulative) line quantity. Consent-gated inside.
+          const added = next.lines.find((l) => l.variantId === variantId);
+          if (added) trackAddToCart(added, quantity);
         } catch (err) {
           console.error('[cart-store] addItem failed:', err);
           set({ isLoading: false, error: toErrorMessage(err) });
