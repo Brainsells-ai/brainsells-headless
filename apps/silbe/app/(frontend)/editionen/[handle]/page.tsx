@@ -12,6 +12,7 @@ import { MaterialSpecs } from '@/components/product/MaterialSpecs';
 import { EditorialEssay } from '@/components/product/EditorialEssay';
 import { ThemeTags } from '@/components/product/ThemeTags';
 import { CrossLinks } from '@/components/product/CrossLinks';
+import { TrackViewItem } from '@/components/tracking/TrackViewItem';
 
 export const revalidate = 3600;
 
@@ -57,8 +58,26 @@ export default async function ProductPage({
 
   if (!product) notFound();
 
+  // view_item item built server-side from the default variant (first in the
+  // array — same default the Hero/VariantSelector render). Serializable
+  // props only across the RSC boundary.
+  const defaultVariant = product.variants[0];
+  const viewItemPrice = defaultVariant?.price ?? product.priceRange.min;
+
   return (
     <article>
+      {defaultVariant && (
+        <TrackViewItem
+          item={{
+            item_id: defaultVariant.id,
+            item_name: product.title,
+            item_variant: defaultVariant.title,
+            price: Number(viewItemPrice.amount),
+            quantity: 1,
+          }}
+          currency={viewItemPrice.currencyCode}
+        />
+      )}
       <JsonLd
         data={[
           productSchema(product, `/editionen/${handle}`),

@@ -10,7 +10,8 @@
         "DATABASE_URI",
         "NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN",
         "NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN",
-        "SHOPIFY_STOREFRONT_PRIVATE_TOKEN"
+        "SHOPIFY_STOREFRONT_PRIVATE_TOKEN",
+        "NEXT_PUBLIC_GTM_ID"
       ],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": [".next/**", "!.next/cache/**"]

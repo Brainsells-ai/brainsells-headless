@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useCartStore } from '@/lib/cart-store';
+import { trackBeginCheckout } from '@/lib/tracking/events';
 import { CartLineItem } from './CartLineItem';
 import { EmptyCart } from './EmptyCart';
 import { FreeShipBar } from './FreeShipBar';
@@ -279,6 +280,11 @@ export function CartDrawer() {
                 href={cart.checkoutUrl}
                 aria-disabled={isLoading || undefined}
                 className="silbe-cart-button"
+                // begin_checkout before the hard navigation to the Shopify
+                // checkout domain. dataLayer.push is synchronous; tag
+                // delivery across the navigation is GTM/sendBeacon terrain
+                // (Schritt 3), not a code concern here.
+                onClick={() => trackBeginCheckout(cart)}
                 style={{
                   display: 'block',
                   width: '100%',

@@ -5,6 +5,8 @@ import { Footer } from '@/components/layout/Footer';
 import { CartDrawer } from '@/components/cart/CartDrawer';
 import { ConsentProvider } from '@/lib/consent/ConsentProvider';
 import { ConsentBanner } from '@/components/consent/ConsentBanner';
+import { GtmLoader } from '@/components/tracking/GtmLoader';
+import { PageViewTracker } from '@/components/tracking/PageViewTracker';
 import './globals.css';
 
 const cormorant = Cormorant_Garamond({
@@ -55,6 +57,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body className="min-h-screen flex flex-col">
         <ConsentProvider>
+          {/* GtmLoader first: Consent-Mode default enters the dataLayer
+              queue before any sibling island can push an event. */}
+          <GtmLoader />
+          <PageViewTracker />
           <Header />
           <main className="flex-1">{children}</main>
           <Footer />
