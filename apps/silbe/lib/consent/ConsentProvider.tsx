@@ -5,10 +5,14 @@
 // useConsent().
 //
 // State machine:
-//   - script not loaded               → ready=false, consent=null
-//   - script loaded, no prior decision → ready=true, consent=null, banner opens
-//   - script loaded, prior decision   → ready=true, consent={...}, banner stays closed
+//   - script not loaded                → ready=false, consent=null
+//   - script loaded, no prior decision → ready=true, consent=empty-object, banner opens
+//   - script loaded, prior decision    → ready=true, consent={...granted/denied}, banner stays closed
 //   - user clicks accept/reject        → setTrackingConsent → consent set, banner closes
+//
+// "no prior decision" is NOT null on a headless storefront: Shopify's
+// currentVisitorConsent() returns an object whose category fields are empty
+// strings ({ marketing: '', analytics: '', ... }). See hasNoDecision() below.
 //
 // "configured" gates the banner: without the three required env values
 // (checkout-root-domain, storefront-root-domain, storefront-access-token) the
@@ -50,6 +54,52 @@ type ConsentContextValue = {
   // categories default to denied so the payload stays well-formed.
   acceptSelection: (selection: Partial<ConsentCategories>) => void;
 };
+
+// ─── "No decision yet" detection ───────────────────────────────────────────
+//
+// Root cause of the never-opening banner (verified via Production console):
+// Shopify's HEADLESS Customer Privacy API does NOT return null for an
+// undecided visitor. currentVisitorConsent() yields an object whose category
+// fields are EMPTY STRINGS, e.g. { marketing: '', analytics: '',
+// preferences: '', sale_of_data: '' }. A recorded decision replaces those
+// with a concrete value (boolean true/false from our own writes, or
+// 'granted'/'denied' depending on API surface). The original `current === null`
+// check was therefore never true → setIsBannerOpen(true) never ran.
+//
+// hasNoDecision() treats a visitor as undecided when consent is null/undefined
+// OR when every banner-relevant category (analytics/marketing/preferences —
+// sale_of_data is not surfaced in the UI) is empty/undefined. ANY concrete
+// value — including boolean false or 'denied' — counts as an answer and keeps
+// the banner closed, so a returning visitor who rejected is never re-prompted.
+
+// Loose shape mirroring what Shopify returns at runtime. The typed
+// VisitorConsent (boolean category fields) is assignable to this.
+type ConsentFieldValue = boolean | string | null | undefined;
+type RawVisitorConsent =
+  | {
+      analytics?: ConsentFieldValue;
+      marketing?: ConsentFieldValue;
+      preferences?: ConsentFieldValue;
+      sale_of_data?: ConsentFieldValue;
+    }
+  | null
+  | undefined;
+
+// A single category is "answered" when it holds any concrete value. Empty
+// string (Shopify's headless "no answer"), undefined and null are the only
+// unanswered states; boolean false and 'denied' ARE answers.
+function isAnswered(value: ConsentFieldValue): boolean {
+  return value !== '' && value !== undefined && value !== null;
+}
+
+export function hasNoDecision(consent: RawVisitorConsent): boolean {
+  if (consent == null) return true;
+  return (
+    !isAnswered(consent.analytics) &&
+    !isAnswered(consent.marketing) &&
+    !isAnswered(consent.preferences)
+  );
+}
 
 const ConsentContext = createContext<ConsentContextValue | null>(null);
 
@@ -105,7 +155,10 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
     try {
       const current = api.currentVisitorConsent();
       setConsent(current);
-      if (current === null && configured) {
+      // Headless Shopify returns an empty-string object (not null) for an
+      // undecided visitor — hasNoDecision() covers both. Without this the
+      // banner never opened on Production.
+      if (hasNoDecision(current) && configured) {
         setIsBannerOpen(true);
       }
     } catch (err) {
