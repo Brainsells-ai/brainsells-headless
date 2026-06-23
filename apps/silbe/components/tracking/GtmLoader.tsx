@@ -23,9 +23,9 @@
 
 import { useEffect } from 'react';
 import { useConsent } from '@/lib/consent/ConsentProvider';
+import type { ConsentInput } from '@/lib/consent/consent-value';
 import { getCustomerPrivacy } from '@/lib/consent/shopify-consent';
 import {
-  type ConsentInput,
   getGtmId,
   injectGtm,
   pushConsentDefault,

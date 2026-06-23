@@ -107,4 +107,13 @@ describe('hasRequiredConsent', () => {
     expect(hasRequiredConsent('page_view', { ...denied, analytics: true })).toBe(true);
     expect(hasRequiredConsent('add_to_cart', { ...denied, marketing: true })).toBe(true);
   });
+
+  // Shopify's headless currentVisitorConsent() returns 'yes'/'no'/'' strings,
+  // not booleans. 'no' is truthy, so the old `consent[category]` truthiness
+  // check let events through for a visitor who declined — guard that here.
+  it('grants on the "yes" string but never on "no"/"" (the truthy-string trap)', () => {
+    expect(hasRequiredConsent('page_view', { analytics: 'yes', marketing: 'no' })).toBe(true);
+    expect(hasRequiredConsent('view_item', { analytics: 'no', marketing: 'no' })).toBe(false);
+    expect(hasRequiredConsent('add_to_cart', { analytics: '', marketing: '' })).toBe(false);
+  });
 });

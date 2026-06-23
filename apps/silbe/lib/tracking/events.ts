@@ -19,6 +19,7 @@
 // browser↔server dedup (Meta CAPI etc.). We only GENERATE and attach the id
 // — dedup configuration itself is Stape dashboard work, not code.
 
+import { type ConsentInput, isConsentGranted } from '@/lib/consent/consent-value';
 import { getCustomerPrivacy } from '@/lib/consent/shopify-consent';
 import type { ConsentCategories } from '@/lib/consent/types';
 import type { Cart, CartLine } from '@/lib/shopify-cart';
@@ -64,13 +65,18 @@ const REQUIRED_CONSENT: Record<FunnelEvent['event'], (keyof ConsentCategories)[]
 
 export function hasRequiredConsent(
   event: FunnelEvent['event'],
-  consent: ConsentCategories | null,
+  consent: ConsentInput | null,
 ): boolean {
   if (!consent) return false;
-  return REQUIRED_CONSENT[event].some((category) => consent[category]);
+  // isConsentGranted, not raw truthiness: Shopify returns the STRING 'no' for a
+  // rejected category and 'no' is truthy — a `consent[category]` check would let
+  // events through for a visitor who declined.
+  return REQUIRED_CONSENT[event].some((category) =>
+    isConsentGranted(consent[category]),
+  );
 }
 
-function readConsent(): ConsentCategories | null {
+function readConsent(): ConsentInput | null {
   const api = getCustomerPrivacy();
   if (!api) return null;
   try {

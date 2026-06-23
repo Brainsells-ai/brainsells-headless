@@ -17,7 +17,7 @@
 //   - gtm.js is only injected once analytics OR marketing is granted; per-
 //     platform gating below that line is Consent Mode's job inside GTM.
 
-import type { ConsentCategories } from '@/lib/consent/types';
+import { type ConsentInput, isConsentGranted } from '@/lib/consent/consent-value';
 
 declare global {
   interface Window {
@@ -61,35 +61,23 @@ type ConsentModeSignals = {
   analytics_storage: ConsentSignal;
 };
 
-// Tolerant input shape for the bridge. Shopify's headless
-// currentVisitorConsent() returns STRING values per category — 'yes' | 'no' |
-// '' (verified via Production console) — while our own in-session writes
-// (ConsentProvider ALL_ACCEPTED / ALL_DENIED) pass booleans. The bridge must
-// accept both. Keyed off ConsentCategories so the category set stays in lockstep.
-type ConsentFieldValue = boolean | string | null | undefined;
-export type ConsentInput = Partial<
-  Record<keyof ConsentCategories, ConsentFieldValue>
->;
-
-// A category is GRANTED only on an explicit affirmative: Shopify's 'yes', the
-// API's 'granted', or a boolean true. EVERYTHING else — 'no', '' (undecided),
-// 'denied', false, null, undefined — is DENIED.
+// Maps Shopify Customer Privacy categories onto Consent Mode v2 signals.
 //
-// This is the actual bug fix: the previous mapping used boolean truthiness
-// (`consent.marketing ? 'granted' : 'denied'`), but Shopify hands us the STRING
-// 'no' for a rejected category, and 'no' is truthy → it was mapped to 'granted'.
-// An explicit value check is the only robust mapping for the 'yes'/'no' shape.
-function isGranted(value: ConsentFieldValue): boolean {
-  return value === true || value === 'yes' || value === 'granted';
-}
-
+// The bug fix lives in isConsentGranted (lib/consent/consent-value.ts): the
+// previous mapping used boolean truthiness (`consent.marketing ? 'granted' :
+// 'denied'`), but Shopify hands us the STRING 'no' for a rejected category, and
+// 'no' is truthy → it was mapped to 'granted'. The shared predicate grants only
+// on an explicit affirmative ('yes' | 'granted' | true). ConsentInput accepts
+// both the headless string shape and our own in-session boolean writes.
 export function toConsentModeSignals(consent: ConsentInput): ConsentModeSignals {
-  const ad: ConsentSignal = isGranted(consent.marketing) ? 'granted' : 'denied';
+  const ad: ConsentSignal = isConsentGranted(consent.marketing)
+    ? 'granted'
+    : 'denied';
   return {
     ad_storage: ad,
     ad_user_data: ad,
     ad_personalization: ad,
-    analytics_storage: isGranted(consent.analytics) ? 'granted' : 'denied',
+    analytics_storage: isConsentGranted(consent.analytics) ? 'granted' : 'denied',
   };
 }
 
