@@ -23,14 +23,28 @@
 
 import { useEffect } from 'react';
 import { useConsent } from '@/lib/consent/ConsentProvider';
+import type { ConsentInput } from '@/lib/consent/consent-value';
 import { getCustomerPrivacy } from '@/lib/consent/shopify-consent';
-import type { ConsentCategories } from '@/lib/consent/types';
-import { getGtmId, injectGtm, pushConsentDefault, pushConsentUpdate } from '@/lib/tracking/gtm';
+import {
+  getGtmId,
+  injectGtm,
+  pushConsentDefault,
+  pushConsentUpdate,
+  toConsentModeSignals,
+} from '@/lib/tracking/gtm';
 
-function applyConsent(consent: ConsentCategories): void {
+function applyConsent(consent: ConsentInput): void {
   pushConsentUpdate(consent);
+  // Inject the GTM container only once a tracking-relevant category is actually
+  // granted. Reuse the Consent-Mode mapping so the 'yes'/'no' string handling
+  // lives in one place — a raw `consent.analytics` truthiness check would load
+  // GTM even for a 'no' (a truthy string) rejection.
+  const signals = toConsentModeSignals(consent);
   const gtmId = getGtmId();
-  if (gtmId && (consent.analytics || consent.marketing)) {
+  if (
+    gtmId &&
+    (signals.analytics_storage === 'granted' || signals.ad_storage === 'granted')
+  ) {
     injectGtm(gtmId);
   }
 }

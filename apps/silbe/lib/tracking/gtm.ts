@@ -17,7 +17,7 @@
 //   - gtm.js is only injected once analytics OR marketing is granted; per-
 //     platform gating below that line is Consent Mode's job inside GTM.
 
-import type { ConsentCategories } from '@/lib/consent/types';
+import { type ConsentInput, isConsentGranted } from '@/lib/consent/consent-value';
 
 declare global {
   interface Window {
@@ -61,15 +61,23 @@ type ConsentModeSignals = {
   analytics_storage: ConsentSignal;
 };
 
-export function toConsentModeSignals(
-  consent: ConsentCategories,
-): ConsentModeSignals {
-  const ad: ConsentSignal = consent.marketing ? 'granted' : 'denied';
+// Maps Shopify Customer Privacy categories onto Consent Mode v2 signals.
+//
+// The bug fix lives in isConsentGranted (lib/consent/consent-value.ts): the
+// previous mapping used boolean truthiness (`consent.marketing ? 'granted' :
+// 'denied'`), but Shopify hands us the STRING 'no' for a rejected category, and
+// 'no' is truthy → it was mapped to 'granted'. The shared predicate grants only
+// on an explicit affirmative ('yes' | 'granted' | true). ConsentInput accepts
+// both the headless string shape and our own in-session boolean writes.
+export function toConsentModeSignals(consent: ConsentInput): ConsentModeSignals {
+  const ad: ConsentSignal = isConsentGranted(consent.marketing)
+    ? 'granted'
+    : 'denied';
   return {
     ad_storage: ad,
     ad_user_data: ad,
     ad_personalization: ad,
-    analytics_storage: consent.analytics ? 'granted' : 'denied',
+    analytics_storage: isConsentGranted(consent.analytics) ? 'granted' : 'denied',
   };
 }
 
@@ -92,7 +100,7 @@ export function pushConsentDefault(): void {
   gtag('consent', 'default', ALL_DENIED);
 }
 
-export function pushConsentUpdate(consent: ConsentCategories): void {
+export function pushConsentUpdate(consent: ConsentInput): void {
   // Defaults must precede any update in the queue.
   pushConsentDefault();
   gtag('consent', 'update', toConsentModeSignals(consent));
