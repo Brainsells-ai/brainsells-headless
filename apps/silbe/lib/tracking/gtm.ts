@@ -61,15 +61,35 @@ type ConsentModeSignals = {
   analytics_storage: ConsentSignal;
 };
 
-export function toConsentModeSignals(
-  consent: ConsentCategories,
-): ConsentModeSignals {
-  const ad: ConsentSignal = consent.marketing ? 'granted' : 'denied';
+// Tolerant input shape for the bridge. Shopify's headless
+// currentVisitorConsent() returns STRING values per category — 'yes' | 'no' |
+// '' (verified via Production console) — while our own in-session writes
+// (ConsentProvider ALL_ACCEPTED / ALL_DENIED) pass booleans. The bridge must
+// accept both. Keyed off ConsentCategories so the category set stays in lockstep.
+type ConsentFieldValue = boolean | string | null | undefined;
+export type ConsentInput = Partial<
+  Record<keyof ConsentCategories, ConsentFieldValue>
+>;
+
+// A category is GRANTED only on an explicit affirmative: Shopify's 'yes', the
+// API's 'granted', or a boolean true. EVERYTHING else — 'no', '' (undecided),
+// 'denied', false, null, undefined — is DENIED.
+//
+// This is the actual bug fix: the previous mapping used boolean truthiness
+// (`consent.marketing ? 'granted' : 'denied'`), but Shopify hands us the STRING
+// 'no' for a rejected category, and 'no' is truthy → it was mapped to 'granted'.
+// An explicit value check is the only robust mapping for the 'yes'/'no' shape.
+function isGranted(value: ConsentFieldValue): boolean {
+  return value === true || value === 'yes' || value === 'granted';
+}
+
+export function toConsentModeSignals(consent: ConsentInput): ConsentModeSignals {
+  const ad: ConsentSignal = isGranted(consent.marketing) ? 'granted' : 'denied';
   return {
     ad_storage: ad,
     ad_user_data: ad,
     ad_personalization: ad,
-    analytics_storage: consent.analytics ? 'granted' : 'denied',
+    analytics_storage: isGranted(consent.analytics) ? 'granted' : 'denied',
   };
 }
 
@@ -92,7 +112,7 @@ export function pushConsentDefault(): void {
   gtag('consent', 'default', ALL_DENIED);
 }
 
-export function pushConsentUpdate(consent: ConsentCategories): void {
+export function pushConsentUpdate(consent: ConsentInput): void {
   // Defaults must precede any update in the queue.
   pushConsentDefault();
   gtag('consent', 'update', toConsentModeSignals(consent));
