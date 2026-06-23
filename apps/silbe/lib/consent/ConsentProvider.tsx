@@ -32,6 +32,7 @@ import {
   CONSENT_API_SRC,
   buildHeadlessConfig,
   getCustomerPrivacy,
+  writeTrackingConsent,
 } from './shopify-consent';
 import type { ConsentCategories, VisitorConsent } from './types';
 
@@ -185,7 +186,11 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
         storefrontAccessToken: storefrontAccessToken as string,
       });
       try {
-        api.setTrackingConsent(next, config, () => {
+        // Shopify's headless API takes consent + config as ONE object (arg 1)
+        // and the success callback as arg 2. Passing config as arg 2 throws
+        // ConsentValidationError, so the banner never closes and the decision
+        // is never recorded. writeTrackingConsent enforces the correct shape.
+        writeTrackingConsent(api, next, config, () => {
           setConsent(next);
           setIsBannerOpen(false);
         });
