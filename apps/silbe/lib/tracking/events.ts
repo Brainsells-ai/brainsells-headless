@@ -48,7 +48,8 @@ type FunnelEvent =
   | { event: 'page_view'; page_path: string; page_location: string; page_title: string }
   | { event: 'view_item'; ecommerce: EcommercePayload }
   | { event: 'add_to_cart'; event_id: string; ecommerce: EcommercePayload }
-  | { event: 'begin_checkout'; event_id: string; ecommerce: EcommercePayload };
+  | { event: 'begin_checkout'; event_id: string; ecommerce: EcommercePayload }
+  | { event: 'newsletter_signup'; method: 'newsletter' };
 
 // ─── Consent gate ──────────────────────────────────────────────────────────
 
@@ -61,6 +62,9 @@ const REQUIRED_CONSENT: Record<FunnelEvent['event'], (keyof ConsentCategories)[]
   view_item: ['analytics', 'marketing'],
   add_to_cart: ['analytics', 'marketing'],
   begin_checkout: ['analytics', 'marketing'],
+  // newsletter_signup feeds GA4 (sign_up) only — ANALYTICS consent specifically,
+  // not marketing. A signup conversion is an analytics measurement.
+  newsletter_signup: ['analytics'],
 };
 
 export function hasRequiredConsent(
@@ -184,4 +188,16 @@ export function trackBeginCheckout(cart: Cart): void {
     event_id: newEventId(),
     ecommerce: buildBeginCheckoutEcommerce(cart),
   });
+}
+
+// Fired ONCE on the DOI confirmation landing page (/newsletter/bestaetigt) —
+// the real conversion point, AFTER the visitor clicked the confirm link in
+// Klaviyo's email, not at form submit. Analytics-consent-gated like every push.
+// GTM wiring (Schritt 3): a "CE - newsletter_signup" custom-event trigger fires
+// a GA4 'sign_up' tag with method = newsletter. Known undercount: a visitor
+// arriving fresh from the email without analytics consent is gated out here —
+// accepted ("kommt an + Tendenz").
+export function trackNewsletterSignup(): void {
+  if (typeof window === 'undefined') return;
+  push({ event: 'newsletter_signup', method: 'newsletter' });
 }
