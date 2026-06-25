@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { config as loadEnv } from 'dotenv';
 import path from 'node:path';
 loadEnv({ path: path.resolve(__dirname, '..', '.env.local') });
@@ -6,33 +5,40 @@ loadEnv({ path: path.resolve(__dirname, '..', '.env.local') });
 import { shopifyAdminFetch } from '../lib/shopify-admin';
 import { canonicalUrl } from '../lib/seo/canonical-url';
 
-// Idempotent registration of the orders/create webhook against the SILBE
-// Shopify app via Admin GraphQL.
+// Idempotent registration of the SILBE app's Shopify webhooks via Admin
+// GraphQL. Each subscription in SUBSCRIPTIONS is reconciled independently.
 //
 // Webhooks created via the API are signed with the App Client-Secret
-// (SHOPIFY_CLIENT_SECRET) — the same value the route handler uses for HMAC
-// verify. That's why this sprint introduced NO new SHOPIFY_WEBHOOK_SECRET
-// env-var (cf. Sprint-B spec v2 nachtrag, 2026-05-28).
+// (SHOPIFY_CLIENT_SECRET) — the same value the route handlers use for HMAC
+// verify. That's why no separate SHOPIFY_WEBHOOK_SECRET env-var exists
+// (cf. Sprint-B spec v2 nachtrag, 2026-05-28).
 //
-// Callback URL is built via canonical-url.ts so the Phase-11 DNS-switch
+// Callback URLs are built via canonical-url.ts so the Phase-11 DNS-switch
 // (vercel.app → silbe.at) is a pure env-var change, no code rewrite.
 //
 // Usage:
 //   pnpm tsx scripts/register-webhooks.ts --dry-run
 //   pnpm tsx scripts/register-webhooks.ts          # live
 //
-// Re-run semantics (idempotent):
-//   0 existing ORDERS_CREATE → create
-//   1 existing, same URL     → no-op
-//   1 existing, other URL    → update
-//   >1 existing              → fail-loud (manual cleanup in Shopify Admin)
+// Re-run semantics (idempotent, per topic):
+//   0 existing → create
+//   1 existing, same URL → no-op
+//   1 existing, other URL → update
+//   >1 existing → fail-loud (manual cleanup in Shopify Admin)
 
-const TOPIC = 'ORDERS_CREATE';
-const CALLBACK_PATH = '/api/webhooks/order-created';
+type WebhookTopic = 'ORDERS_CREATE' | 'REFUNDS_CREATE';
+
+type Subscription = { topic: WebhookTopic; path: string };
+
+const SUBSCRIPTIONS: Subscription[] = [
+  { topic: 'ORDERS_CREATE', path: '/api/webhooks/order-created' },
+  // refunds/create → server-side GA4 `refund` event (full refunds only).
+  { topic: 'REFUNDS_CREATE', path: '/api/webhooks/refunds-create' },
+];
 
 const LIST_QUERY = /* GraphQL */ `
-  query ListOrderCreatedWebhooks {
-    webhookSubscriptions(first: 50, topics: [ORDERS_CREATE]) {
+  query ListWebhooks($topics: [WebhookSubscriptionTopic!]) {
+    webhookSubscriptions(first: 50, topics: $topics) {
       edges {
         node {
           id
@@ -48,7 +54,7 @@ const LIST_QUERY = /* GraphQL */ `
 `;
 
 const CREATE_MUTATION = /* GraphQL */ `
-  mutation CreateOrderCreatedWebhook(
+  mutation CreateWebhook(
     $topic: WebhookSubscriptionTopic!,
     $webhookSubscription: WebhookSubscriptionInput!
   ) {
@@ -60,7 +66,7 @@ const CREATE_MUTATION = /* GraphQL */ `
 `;
 
 const UPDATE_MUTATION = /* GraphQL */ `
-  mutation UpdateOrderCreatedWebhook(
+  mutation UpdateWebhook(
     $id: ID!,
     $webhookSubscription: WebhookSubscriptionInput!
   ) {
@@ -84,9 +90,7 @@ type ListResponse = {
   webhookSubscriptions: { edges: { node: WebhookNode }[] };
 };
 // Note: webhookSubscriptionCreate/Update return the generic UserError type,
-// which exposes only `field` and `message` — no `code`. Specialised UserError
-// subtypes (e.g. MetafieldsSetUserError) do carry `code`, but the webhook
-// mutations do not.
+// which exposes only `field` and `message` — no `code`.
 type UserError = { field: string[] | null; message: string };
 type CreateResponse = {
   webhookSubscriptionCreate: {
@@ -107,63 +111,59 @@ function userErrorsToString(errs: UserError[]): string {
     .join(', ');
 }
 
-async function main(): Promise<void> {
-  const dryRun = process.argv.includes('--dry-run');
-  const callbackUrl = canonicalUrl(CALLBACK_PATH);
+// Returns true on success, false on a fail-loud condition the caller should
+// turn into a non-zero exit.
+async function reconcile(sub: Subscription, dryRun: boolean): Promise<boolean> {
+  const callbackUrl = canonicalUrl(sub.path);
+  console.log(`\n── ${sub.topic} → ${callbackUrl}`);
 
-  console.log(`Mode: ${dryRun ? 'DRY-RUN' : 'LIVE'}`);
-  console.log(`Topic: ${TOPIC}`);
-  console.log(`Callback URL: ${callbackUrl}\n`);
-
-  const list = await shopifyAdminFetch<ListResponse>(LIST_QUERY);
+  const list = await shopifyAdminFetch<ListResponse>(LIST_QUERY, {
+    topics: [sub.topic],
+  });
   const existing = list.webhookSubscriptions.edges
     .map((e) => e.node)
     .filter((n) => n.endpoint.__typename === 'WebhookHttpEndpoint');
 
-  console.log(`Existing ${TOPIC} subscriptions: ${existing.length}`);
+  console.log(`   existing: ${existing.length}`);
   for (const n of existing) {
-    console.log(`  · ${n.id} → ${n.endpoint.callbackUrl ?? '(unknown endpoint)'}`);
+    console.log(`     · ${n.id} → ${n.endpoint.callbackUrl ?? '(unknown endpoint)'}`);
   }
-  console.log();
 
   if (existing.length > 1) {
     console.error(
-      `Expected 0 or 1 existing ${TOPIC} subscription, found ${existing.length}. Manual cleanup needed in Shopify Admin before this script can converge.`,
+      `   ✗ Expected 0 or 1 existing ${sub.topic}, found ${existing.length}. Manual cleanup needed in Shopify Admin.`,
     );
-    process.exit(1);
+    return false;
   }
 
   if (existing.length === 1 && existing[0].endpoint.callbackUrl === callbackUrl) {
-    console.log('✓ Already registered with current callback URL — no-op.');
-    return;
+    console.log('   ✓ Already registered with current callback URL — no-op.');
+    return true;
   }
 
   if (dryRun) {
     if (existing.length === 0) {
-      console.log(`Would CREATE webhook for ${TOPIC} → ${callbackUrl}`);
+      console.log(`   would CREATE → ${callbackUrl}`);
     } else {
-      console.log(`Would UPDATE webhook ${existing[0].id} → ${callbackUrl}`);
+      console.log(`   would UPDATE ${existing[0].id} → ${callbackUrl}`);
     }
-    console.log('\nDry-run only. Re-run without --dry-run to apply.');
-    return;
+    return true;
   }
 
   const webhookSubscription = { callbackUrl, format: 'JSON' };
 
   if (existing.length === 0) {
     const data = await shopifyAdminFetch<CreateResponse>(CREATE_MUTATION, {
-      topic: TOPIC,
+      topic: sub.topic,
       webhookSubscription,
     });
     const errs = data.webhookSubscriptionCreate.userErrors;
     if (errs.length > 0) {
-      console.error(`✗ Create failed: ${userErrorsToString(errs)}`);
-      process.exit(1);
+      console.error(`   ✗ Create failed: ${userErrorsToString(errs)}`);
+      return false;
     }
-    console.log(
-      `✓ Created webhook ${data.webhookSubscriptionCreate.webhookSubscription?.id}`,
-    );
-    return;
+    console.log(`   ✓ Created ${data.webhookSubscriptionCreate.webhookSubscription?.id}`);
+    return true;
   }
 
   // length === 1, different URL → update in place
@@ -173,10 +173,29 @@ async function main(): Promise<void> {
   });
   const errs = data.webhookSubscriptionUpdate.userErrors;
   if (errs.length > 0) {
-    console.error(`✗ Update failed: ${userErrorsToString(errs)}`);
+    console.error(`   ✗ Update failed: ${userErrorsToString(errs)}`);
+    return false;
+  }
+  console.log(`   ✓ Updated ${existing[0].id} → ${callbackUrl}`);
+  return true;
+}
+
+async function main(): Promise<void> {
+  const dryRun = process.argv.includes('--dry-run');
+  console.log(`Mode: ${dryRun ? 'DRY-RUN' : 'LIVE'}`);
+
+  let ok = true;
+  for (const sub of SUBSCRIPTIONS) {
+    // Sequential so the log stays readable and a fail-loud topic is obvious.
+    const result = await reconcile(sub, dryRun);
+    ok = ok && result;
+  }
+
+  if (!ok) {
+    console.error('\nOne or more subscriptions failed to converge.');
     process.exit(1);
   }
-  console.log(`✓ Updated webhook ${existing[0].id} → ${callbackUrl}`);
+  if (dryRun) console.log('\nDry-run only. Re-run without --dry-run to apply.');
 }
 
 main().catch((err) => {

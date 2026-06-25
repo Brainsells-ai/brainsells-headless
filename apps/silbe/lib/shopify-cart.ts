@@ -182,6 +182,19 @@ const CART_QUERY = /* GraphQL */ `
   }
 `;
 
+// Attributes-only update — we don't need the full cart back, just confirmation
+// that the write landed. Used to persist the GA client_id/session_id onto the
+// cart so they ride through to the order's customAttributes (server-side refund
+// attribution). See lib/tracking/ga-identifiers.ts.
+const CART_ATTRIBUTES_UPDATE = /* GraphQL */ `
+  mutation CartAttributesUpdate($cartId: ID!, $attributes: [AttributeInput!]!) {
+    cartAttributesUpdate(cartId: $cartId, attributes: $attributes) {
+      cart { id }
+      userErrors { field message code }
+    }
+  }
+`;
+
 // ─── Parsing Helpers ───────────────────────────────────────────────────────
 
 function parseLine(raw: RawCartLine): CartLine {
@@ -279,4 +292,46 @@ export async function getCart(cartId: string): Promise<Cart | null> {
     { cache: 'no-store' },
   );
   return data.cart ? parseCart(data.cart) : null;
+}
+
+// Persists key/value attributes onto the cart. Goes through a direct fetch
+// rather than shopifyFetch because the sole caller (GA-id capture at
+// begin_checkout) needs `keepalive` — the click navigates to the Shopify
+// checkout domain and a normal fetch would be aborted mid-flight. Mirrors
+// shopifyFetch's env + version contract (lib/shopify.ts, API_VERSION 2026-01).
+export async function updateCartAttributes(
+  cartId: string,
+  attributes: { key: string; value: string }[],
+  opts: { keepalive?: boolean } = {},
+): Promise<void> {
+  const domain = process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN;
+  const token = process.env.NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN;
+  if (!domain) throw new Error('NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN is not set');
+  if (!token) throw new Error('NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN is not set');
+
+  const response = await fetch(`https://${domain}/api/2026-01/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Storefront-Access-Token': token,
+    },
+    body: JSON.stringify({
+      query: CART_ATTRIBUTES_UPDATE,
+      variables: { cartId, attributes },
+    }),
+    cache: 'no-store',
+    keepalive: opts.keepalive ?? false,
+  });
+
+  if (!response.ok) {
+    throw new Error(`cartAttributesUpdate failed: ${response.status}`);
+  }
+  const json = (await response.json()) as {
+    data?: { cartAttributesUpdate: { userErrors: RawUserError[] } };
+    errors?: unknown[];
+  };
+  const userErrors = json.data?.cartAttributesUpdate.userErrors ?? [];
+  if (userErrors.length > 0) {
+    throw new CartUserError(userErrors);
+  }
 }
