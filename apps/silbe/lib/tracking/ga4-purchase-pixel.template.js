@@ -1,4 +1,12 @@
 /* eslint-disable */
+// ⚠️ DEPRECATED — DO NOT DEPLOY. The Web Pixel's keepalive fetch never delivered
+// to GA4/Stape: the Shop-Pay checkout domain switch (shop.app → silbe.at/thank-you)
+// kills the in-flight request. Superseded by the server-side orders/paid webhook
+// (app/api/webhooks/orders-paid/route.ts + lib/tracking/ga4-gtag-purchase.ts),
+// which sends the same gtag /g/collect hit server-to-server. Disable the live
+// Custom Pixel in Shopify Admin. Kept only as a historical reference of the
+// wire format. See memory: web-pixel-purchase-delivery-failure.
+//
 // SILBE purchase Web Pixel — Shopify Customer Events (Custom Pixel).
 //
 // THIS IS A TEMPLATE / REFERENCE COPY of the pixel that lives in the Shopify
