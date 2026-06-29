@@ -17,10 +17,15 @@ export type RefundOrderContext = {
   id: string;
   /** Human order name, e.g. "#1001". */
   name: string;
-  /** REFUNDED (full) | PARTIALLY_REFUNDED | PAID | … */
+  /** REFUNDED (full) | PARTIALLY_REFUNDED | PAID | … — for logging only; NOT a
+   *  full-refund signal (Shopify Payments refunds stay PAID until settlement). */
   displayFinancialStatus: string;
-  /** Cumulative amount refunded. For a full refund this equals the order total. */
+  /** Cumulative amount already SETTLED-refunded. 0.0 while a Shopify-Payments
+   *  refund is still pending — do NOT use as the GA4 refund value. */
   totalRefunded: { amount: string; currencyCode: string };
+  /** Order total (currentTotalPrice) — the settlement-independent yardstick for
+   *  full-refund detection at webhook time. */
+  orderTotal: { amount: string; currencyCode: string };
   /** GA4 client_id captured at begin_checkout, or null if none was stored. */
   gaClientId: string | null;
   /** GA4 session_id captured at begin_checkout, or null. */
@@ -34,6 +39,7 @@ type OrderRefundContextNode = {
   name: string;
   displayFinancialStatus: string | null;
   totalRefundedSet: { shopMoney: { amount: string; currencyCode: string } };
+  currentTotalPriceSet: { shopMoney: { amount: string; currencyCode: string } };
   customAttributes: OrderCustomAttribute[];
 };
 
@@ -46,6 +52,7 @@ const QUERY = /* GraphQL */ `
       name
       displayFinancialStatus
       totalRefundedSet { shopMoney { amount currencyCode } }
+      currentTotalPriceSet { shopMoney { amount currencyCode } }
       customAttributes { key value }
     }
   }
@@ -66,6 +73,7 @@ export async function getRefundOrderContext(
     name: order.name,
     displayFinancialStatus: order.displayFinancialStatus ?? 'UNKNOWN',
     totalRefunded: order.totalRefundedSet.shopMoney,
+    orderTotal: order.currentTotalPriceSet.shopMoney,
     gaClientId: attr(GA_CLIENT_ID_ATTR),
     gaSessionId: attr(GA_SESSION_ID_ATTR),
   };
