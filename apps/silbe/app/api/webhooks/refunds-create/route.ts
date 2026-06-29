@@ -17,15 +17,18 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { verifyShopifyWebhookHmac } from '@/lib/shopify-webhook-hmac';
 import { getRefundOrderContext } from '@/lib/shopify-refund-order';
+import { classifyRefund } from '@/lib/refund-classify';
 import { sendGa4MeasurementProtocol } from '@/lib/tracking/ga4-mp';
 
 export const runtime = 'nodejs';
 
-// We depend only on order_id from the refund payload; the rest comes from the
-// authoritative Admin-API lookup. id is present for diagnostics.
+// From the refund payload we read order_id (to look up the order) and
+// transactions (the refunded money — settlement-independent, unlike the order's
+// displayFinancialStatus). id is present for diagnostics.
 type ShopifyRefundWebhook = {
   id: number | string;
   order_id: number | string;
+  transactions?: { amount?: string | null; kind?: string | null }[];
 };
 
 // The purchase pixel sends String(checkout.order.id) = the NUMERIC order id.
@@ -88,14 +91,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: true });
   }
 
-  // FULL refunds only. A partial refund leaves the order PARTIALLY_REFUNDED;
-  // only a full refund flips it to REFUNDED.
-  if (ctx.displayFinancialStatus !== 'REFUNDED') {
+  // FULL refunds only — detected from the refund's own amount (webhook payload)
+  // vs the order total, NOT from displayFinancialStatus. Shopify Payments
+  // refunds settle async: at refunds/create time the refund is REFUND/PENDING,
+  // the order is still PAID, and totalRefunded is 0.0. The status flips to
+  // REFUNDED only at settlement, and refunds/create does not re-fire then — so
+  // gating on '=== REFUNDED' silently drops every Shopify-Payments refund.
+  const { isFull, amount: refundAmount } = classifyRefund({
+    transactions: refund.transactions,
+    priorRefunded: Number(ctx.totalRefunded.amount) || 0,
+    orderTotal: Number(ctx.orderTotal.amount) || 0,
+  });
+  if (!isFull) {
     console.log(
-      `[refunds-create] ${ctx.name} is ${ctx.displayFinancialStatus} — not a full refund, skipping`,
+      `[refunds-create] ${ctx.name}: not a full refund ` +
+        `(this ${refundAmount} + prior ${ctx.totalRefunded.amount} of ` +
+        `${ctx.orderTotal.amount} ${ctx.orderTotal.currencyCode}, status ` +
+        `${ctx.displayFinancialStatus}) — skipping`,
     );
     return NextResponse.json({ ok: true });
   }
+
+  // Idempotency: this handler always returns 200, so Shopify never retries (no
+  // storm). Shopify's at-least-once delivery can still, rarely, deliver the same
+  // refunds/create twice → a duplicate GA4 refund event (same transaction_id).
+  // GA4 MP has no dedup; durable dedup keyed on the refund id (Postgres) is the
+  // follow-up if duplicates ever surface. Left out here to keep the hotfix tight.
 
   const clientId = ctx.gaClientId ?? syntheticClientId();
   if (!ctx.gaClientId) {
@@ -106,11 +127,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const params: Record<string, string | number> = {
     transaction_id: orderId,
-    value: Number(ctx.totalRefunded.amount),
-    currency: ctx.totalRefunded.currencyCode,
+    // value/currency come from THIS refund (classifyRefund), NOT ctx.totalRefunded
+    // which reads 0.0 while a Shopify-Payments refund is still pending.
+    value: refundAmount,
+    currency: ctx.orderTotal.currencyCode,
     // session_id + engagement_time_msec mirror the purchase event so GA4 keeps
-    // the refund in session scope. (A refund days later is past the original
-    // session — it will land in DebugView, not Realtime; expected.)
+    // the refund in session scope. The prod MP send sets no debug_mode, so the
+    // refund lands in standard reports — not DebugView, and not Realtime once
+    // past the original session window. Expected.
     engagement_time_msec: 1,
   };
   if (ctx.gaSessionId) params.session_id = ctx.gaSessionId;
