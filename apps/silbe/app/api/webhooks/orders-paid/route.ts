@@ -18,6 +18,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { verifyShopifyWebhookHmac } from '@/lib/shopify-webhook-hmac';
 import { buildPurchaseGtagUrl, type Ga4GtagItem } from '@/lib/tracking/ga4-gtag-purchase';
 import { GA_CLIENT_ID_ATTR, GA_SESSION_ID_ATTR } from '@/lib/tracking/ga-cart-attributes';
+import { ga4PurchaseAlreadySent, markGa4PurchaseSent } from '@/lib/shopify-purchase-marker';
 
 export const runtime = 'nodejs';
 
@@ -88,6 +89,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: true });
   }
 
+  const orderGid = `gid://shopify/Order/${orderId}`;
+
+  // Idempotency: skip if a purchase was already sent for this order. orders/paid
+  // can be delivered more than once (Shopify at-least-once) and a duplicate
+  // purchase inflates GA4 revenue. See lib/shopify-purchase-marker for the
+  // metafield mechanism + the documented concurrent-delivery caveat.
+  try {
+    if (await ga4PurchaseAlreadySent(orderGid)) {
+      console.log(`[orders-paid] ${orderId}: purchase already sent — skipping (idempotent)`);
+      return NextResponse.json({ ok: true });
+    }
+  } catch (err) {
+    // Read failed → proceed rather than risk LOSING the purchase. A re-delivery
+    // could then duplicate, but a missed purchase is worse than a rare dup.
+    console.error(`[orders-paid] marker read failed for ${orderId} — proceeding:`, err);
+  }
+
   const storedClientId = noteAttr(order.note_attributes, GA_CLIENT_ID_ATTR);
   const clientId = storedClientId ?? syntheticClientId();
   const sessionId =
@@ -121,20 +139,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     debug,
   });
 
-  // Idempotency: like the refund webhook, this handler always returns 200, so
-  // Shopify never retries (no storm), and orders/paid normally fires once.
-  // Shopify's at-least-once delivery can still rarely double-deliver → a
-  // duplicate purchase event (same transaction_id), which inflates GA4 revenue
-  // more than a duplicate refund would. Durable dedup keyed on the order id
-  // (order metafield marker or a Postgres unique constraint) is the recommended
-  // follow-up — flagged as a review decision; not implemented here (matches the
-  // refund PR #50 baseline to keep the diff focused).
-
+  // Always 200 → Shopify never retries (no storm). The metafield marker dedups
+  // re-deliveries; we mark only AFTER a successful send so a send failure does
+  // not permanently suppress a later retry.
+  let sentOk = false;
   try {
     const r = await fetch(url, { method: 'POST', keepalive: true, cache: 'no-store' });
     if (!r.ok) {
       console.error(`[orders-paid] gtag returned non-2xx: ${r.status} for ${orderId}`);
     } else {
+      sentOk = true;
       console.log(
         `[orders-paid] purchase sent for ${orderId} (${value} ${currency}, ${items.length} items)` +
           (debug ? ` [debug] ${url}` : ''),
@@ -142,6 +156,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   } catch (err) {
     console.error(`[orders-paid] gtag send failed for ${orderId}:`, err);
+  }
+
+  if (sentOk) {
+    try {
+      await markGa4PurchaseSent(orderGid);
+    } catch (err) {
+      console.error(`[orders-paid] marker write failed for ${orderId} — a re-delivery may duplicate:`, err);
+    }
   }
 
   return NextResponse.json({ ok: true });
