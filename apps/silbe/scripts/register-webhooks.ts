@@ -26,12 +26,18 @@ import { canonicalUrl } from '../lib/seo/canonical-url';
 //   1 existing, other URL → update
 //   >1 existing → fail-loud (manual cleanup in Shopify Admin)
 
-type WebhookTopic = 'ORDERS_CREATE' | 'REFUNDS_CREATE';
+type WebhookTopic = 'ORDERS_PAID' | 'REFUNDS_CREATE';
 
 type Subscription = { topic: WebhookTopic; path: string };
 
+// NOTE: orders/create is intentionally NOT auto-registered — it feeds the
+// dormant Klaviyo editorial path (app/api/webhooks/order-created/route.ts),
+// kept un-registered by decision. The handler stays in code; re-add
+// ORDERS_CREATE here only if that path is ever activated.
 const SUBSCRIPTIONS: Subscription[] = [
-  { topic: 'ORDERS_CREATE', path: '/api/webhooks/order-created' },
+  // orders/paid → server-side GA4 `purchase` via Stape (replaces the Web Pixel,
+  // whose keepalive fetch never delivered across the Shop-Pay domain switch).
+  { topic: 'ORDERS_PAID', path: '/api/webhooks/orders-paid' },
   // refunds/create → server-side GA4 `refund` event (full refunds only).
   { topic: 'REFUNDS_CREATE', path: '/api/webhooks/refunds-create' },
 ];
