@@ -23,8 +23,9 @@ export type RefundOrderContext = {
   /** Cumulative amount already SETTLED-refunded. 0.0 while a Shopify-Payments
    *  refund is still pending — do NOT use as the GA4 refund value. */
   totalRefunded: { amount: string; currencyCode: string };
-  /** Order total (currentTotalPrice) — the settlement-independent yardstick for
-   *  full-refund detection at webhook time. */
+  /** ORIGINAL order total (totalPriceSet) — the full-refund denominator. NOT
+   *  currentTotalPrice, which drops toward 0 as the order is refunded and would
+   *  make a full refund read as "0.5 of 0.0" → gate skips. */
   orderTotal: { amount: string; currencyCode: string };
   /** GA4 client_id captured at begin_checkout, or null if none was stored. */
   gaClientId: string | null;
@@ -39,7 +40,7 @@ type OrderRefundContextNode = {
   name: string;
   displayFinancialStatus: string | null;
   totalRefundedSet: { shopMoney: { amount: string; currencyCode: string } };
-  currentTotalPriceSet: { shopMoney: { amount: string; currencyCode: string } };
+  totalPriceSet: { shopMoney: { amount: string; currencyCode: string } };
   customAttributes: OrderCustomAttribute[];
 };
 
@@ -52,7 +53,7 @@ const QUERY = /* GraphQL */ `
       name
       displayFinancialStatus
       totalRefundedSet { shopMoney { amount currencyCode } }
-      currentTotalPriceSet { shopMoney { amount currencyCode } }
+      totalPriceSet { shopMoney { amount currencyCode } }
       customAttributes { key value }
     }
   }
@@ -73,7 +74,7 @@ export async function getRefundOrderContext(
     name: order.name,
     displayFinancialStatus: order.displayFinancialStatus ?? 'UNKNOWN',
     totalRefunded: order.totalRefundedSet.shopMoney,
-    orderTotal: order.currentTotalPriceSet.shopMoney,
+    orderTotal: order.totalPriceSet.shopMoney,
     gaClientId: attr(GA_CLIENT_ID_ATTR),
     gaSessionId: attr(GA_SESSION_ID_ATTR),
   };
