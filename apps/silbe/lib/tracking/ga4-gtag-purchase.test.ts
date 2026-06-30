@@ -24,6 +24,14 @@ describe('gtagProducts', () => {
     ).not.toContain('~va');
   });
 
+  it('suppresses Shopify\'s "Default Title" single-variant noise', () => {
+    expect(
+      gtagProducts([
+        { item_id: '42', item_name: 'X', price: '1', quantity: 1, item_variant: 'Default Title' },
+      ])[0],
+    ).not.toContain('~va');
+  });
+
   it('numbers products pr1, pr2, …', () => {
     const segs = gtagProducts([
       { item_id: '1', item_name: 'A', price: '1', quantity: 1 },
