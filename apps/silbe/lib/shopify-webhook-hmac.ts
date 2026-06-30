@@ -1,11 +1,12 @@
 // Verifies a Shopify webhook HMAC against the raw request body.
 //
 // Secret note: we ASSUMED Shopify signs Admin-API-registered webhooks with the
-// App Client-Secret (SHOPIFY_CLIENT_SECRET). 2026-06: every REAL delivery 401'd
-// while local-signed synthetic POSTs passed → Shopify signs with a DIFFERENT
-// secret than the client_credentials client secret. SHOPIFY_WEBHOOK_SECRET now
-// overrides it (falling back to SHOPIFY_CLIENT_SECRET so this stays non-breaking
-// until the right value is set). See memory: shopify-webhook-hmac-secret-mismatch.
+// App Client-Secret used by client_credentials. 2026-06: it actually signs with
+// a DIFFERENT secret (the "Old" client secret), while the OAuth/mint can use
+// either. So verify tries MULTIPLE candidates and accepts a match against ANY —
+// rotation-safe: during a rotation both Old and New pass. SHOPIFY_WEBHOOK_SECRET
+// is the real signing secret; SHOPIFY_WEBHOOK_SECRET_OLD and SHOPIFY_CLIENT_SECRET
+// are also tried. See memory: shopify-webhook-hmac-secret-mismatch.
 //
 // Constant-time comparison via timingSafeEqual; length-checked first so a
 // malformed header can't crash the comparison. Returns false for any missing
@@ -31,20 +32,28 @@ export function verifyShopifyWebhookHmac(
   return timingSafeEqual(expectedBuf, providedBuf);
 }
 
-// The secret Shopify actually signs webhooks with. SHOPIFY_WEBHOOK_SECRET wins;
-// falls back to SHOPIFY_CLIENT_SECRET (the pre-2026-06 assumption) when unset.
-export function resolveWebhookSecret(): string | null {
-  return process.env.SHOPIFY_WEBHOOK_SECRET || process.env.SHOPIFY_CLIENT_SECRET || null;
-}
-
-// Env vars tried as candidate secrets when SHOPIFY_HMAC_DEBUG=1 and a verify
-// fails. We log each env NAME + whether its HMAC matched + a short prefix of the
-// computed digest — NEVER the secret value, NEVER the request body.
+// Env vars tried as candidate webhook signing secrets, in precedence order.
+// verify accepts a match against ANY (rotation-safe); the SHOPIFY_HMAC_DEBUG
+// diagnostic logs each by NAME.
 const CANDIDATE_SECRET_ENVS = [
   'SHOPIFY_WEBHOOK_SECRET',
-  'SHOPIFY_CLIENT_SECRET',
   'SHOPIFY_WEBHOOK_SECRET_OLD',
+  'SHOPIFY_CLIENT_SECRET',
 ];
+
+// Resolved candidate secrets (values from env; deduped; unset skipped).
+export function webhookSecretCandidates(): { name: string; value: string }[] {
+  const seen = new Set<string>();
+  const out: { name: string; value: string }[] = [];
+  for (const name of CANDIDATE_SECRET_ENVS) {
+    const value = process.env[name];
+    if (value && !seen.has(value)) {
+      seen.add(value);
+      out.push({ name, value });
+    }
+  }
+  return out;
+}
 
 function logHmacCandidates(rawBody: string, sigHeader: string | null): void {
   const received = sigHeader ?? '';
@@ -68,21 +77,21 @@ function logHmacCandidates(rawBody: string, sigHeader: string | null): void {
   }
 }
 
-// Central webhook verification for all SILBE webhook routes: resolves the secret,
-// verifies, and (when SHOPIFY_HMAC_DEBUG=1) logs received-vs-computed HMAC for
-// every candidate env so a SINGLE real delivery reveals which secret Shopify
-// signs with — no multi-deploy guessing. Returns true iff the HMAC is valid.
+// Central webhook verification for all SILBE webhook routes: accepts the HMAC if
+// ANY candidate secret matches (rotation-safe). When SHOPIFY_HMAC_DEBUG=1 and no
+// candidate matches, logs received-vs-computed HMAC per candidate env (no secret,
+// no PII) so a SINGLE real delivery reveals which secret Shopify signs with.
 export function verifyShopifyWebhook(rawBody: string, sigHeader: string | null): boolean {
-  const secret = resolveWebhookSecret();
-  if (!secret) {
+  const candidates = webhookSecretCandidates();
+  if (candidates.length === 0) {
     console.error(
       '[webhook-hmac] no webhook secret set (SHOPIFY_WEBHOOK_SECRET / SHOPIFY_CLIENT_SECRET) — refusing',
     );
     return false;
   }
-  const ok = verifyShopifyWebhookHmac(rawBody, sigHeader, secret);
-  if (!ok && process.env.SHOPIFY_HMAC_DEBUG === '1') {
-    logHmacCandidates(rawBody, sigHeader);
+  for (const c of candidates) {
+    if (verifyShopifyWebhookHmac(rawBody, sigHeader, c.value)) return true;
   }
-  return ok;
+  if (process.env.SHOPIFY_HMAC_DEBUG === '1') logHmacCandidates(rawBody, sigHeader);
+  return false;
 }
