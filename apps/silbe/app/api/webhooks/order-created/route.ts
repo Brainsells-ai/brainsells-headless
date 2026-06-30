@@ -21,7 +21,7 @@ import {
 } from '@/lib/editorial-context';
 import { signWiderrufToken } from '@/lib/widerruf-token';
 import { trackKlaviyoEvent } from '@/lib/klaviyo-events';
-import { verifyShopifyWebhookHmac } from '@/lib/shopify-webhook-hmac';
+import { verifyShopifyWebhook } from '@/lib/shopify-webhook-hmac';
 
 export const runtime = 'nodejs';
 
@@ -52,13 +52,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const rawBody = await req.text();
   const sigHeader = req.headers.get('x-shopify-hmac-sha256');
 
-  const secret = process.env.SHOPIFY_CLIENT_SECRET;
-  if (!secret) {
-    console.error(
-      '[order-created] SHOPIFY_CLIENT_SECRET is not set — refusing all requests',
-    );
-  }
-  if (!verifyShopifyWebhookHmac(rawBody, sigHeader, secret)) {
+  if (!verifyShopifyWebhook(rawBody, sigHeader)) {
     return NextResponse.json({ error: 'Invalid HMAC' }, { status: 401 });
   }
 

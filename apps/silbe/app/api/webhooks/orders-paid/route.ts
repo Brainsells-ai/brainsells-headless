@@ -15,7 +15,7 @@
 // avoid the Shopify retry storm. Node runtime (HMAC uses node:crypto).
 
 import { NextResponse, type NextRequest } from 'next/server';
-import { verifyShopifyWebhookHmac } from '@/lib/shopify-webhook-hmac';
+import { verifyShopifyWebhook } from '@/lib/shopify-webhook-hmac';
 import { buildPurchaseGtagUrl, type Ga4GtagItem } from '@/lib/tracking/ga4-gtag-purchase';
 import { GA_CLIENT_ID_ATTR, GA_SESSION_ID_ATTR } from '@/lib/tracking/ga-cart-attributes';
 import { ga4PurchaseAlreadySent, markGa4PurchaseSent } from '@/lib/shopify-purchase-marker';
@@ -60,11 +60,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const rawBody = await req.text();
   const sigHeader = req.headers.get('x-shopify-hmac-sha256');
 
-  const secret = process.env.SHOPIFY_CLIENT_SECRET;
-  if (!secret) {
-    console.error('[orders-paid] SHOPIFY_CLIENT_SECRET is not set — refusing all requests');
-  }
-  if (!verifyShopifyWebhookHmac(rawBody, sigHeader, secret)) {
+  if (!verifyShopifyWebhook(rawBody, sigHeader)) {
     return NextResponse.json({ error: 'Invalid HMAC' }, { status: 401 });
   }
 
