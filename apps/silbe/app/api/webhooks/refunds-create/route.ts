@@ -15,7 +15,7 @@
 // the whole order lookup; it is logged for a human instead.
 
 import { NextResponse, type NextRequest } from 'next/server';
-import { verifyShopifyWebhookHmac } from '@/lib/shopify-webhook-hmac';
+import { verifyShopifyWebhook } from '@/lib/shopify-webhook-hmac';
 import { getRefundOrderContext } from '@/lib/shopify-refund-order';
 import { classifyRefund } from '@/lib/refund-classify';
 import { sendGa4MeasurementProtocol } from '@/lib/tracking/ga4-mp';
@@ -54,11 +54,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const rawBody = await req.text();
   const sigHeader = req.headers.get('x-shopify-hmac-sha256');
 
-  const secret = process.env.SHOPIFY_CLIENT_SECRET;
-  if (!secret) {
-    console.error('[refunds-create] SHOPIFY_CLIENT_SECRET is not set — refusing all requests');
-  }
-  if (!verifyShopifyWebhookHmac(rawBody, sigHeader, secret)) {
+  if (!verifyShopifyWebhook(rawBody, sigHeader)) {
     return NextResponse.json({ error: 'Invalid HMAC' }, { status: 401 });
   }
 
