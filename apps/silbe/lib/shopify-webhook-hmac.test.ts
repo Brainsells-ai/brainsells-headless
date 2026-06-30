@@ -1,6 +1,10 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { createHmac } from 'node:crypto';
-import { verifyShopifyWebhookHmac, resolveWebhookSecret } from './shopify-webhook-hmac';
+import {
+  verifyShopifyWebhookHmac,
+  verifyShopifyWebhook,
+  webhookSecretCandidates,
+} from './shopify-webhook-hmac';
 
 // Phase-9 Sprint-B — acceptance gate per Sprint-B spec ("HMAC-Verify-Test
 // gültig + 401-Pfad"). Covers the happy path, the wrong-signature 401 path,
@@ -49,35 +53,61 @@ describe('verifyShopifyWebhookHmac', () => {
   });
 });
 
-describe('resolveWebhookSecret', () => {
-  const orig = {
-    webhook: process.env.SHOPIFY_WEBHOOK_SECRET,
-    client: process.env.SHOPIFY_CLIENT_SECRET,
-  };
-  const set = (k: string, v: string | undefined): void => {
-    if (v === undefined) delete process.env[k];
-    else process.env[k] = v;
-  };
-  afterEach(() => {
-    set('SHOPIFY_WEBHOOK_SECRET', orig.webhook);
-    set('SHOPIFY_CLIENT_SECRET', orig.client);
+const SECRET_KEYS = [
+  'SHOPIFY_WEBHOOK_SECRET',
+  'SHOPIFY_WEBHOOK_SECRET_OLD',
+  'SHOPIFY_CLIENT_SECRET',
+];
+const setEnv = (k: string, v: string | undefined): void => {
+  if (v === undefined) delete process.env[k];
+  else process.env[k] = v;
+};
+
+describe('webhookSecretCandidates', () => {
+  const orig = Object.fromEntries(SECRET_KEYS.map((k) => [k, process.env[k]]));
+  afterEach(() => SECRET_KEYS.forEach((k) => setEnv(k, orig[k])));
+
+  it('lists set secrets in precedence order (webhook, old, client)', () => {
+    setEnv('SHOPIFY_WEBHOOK_SECRET', 'w');
+    setEnv('SHOPIFY_WEBHOOK_SECRET_OLD', 'o');
+    setEnv('SHOPIFY_CLIENT_SECRET', 'c');
+    expect(webhookSecretCandidates()).toEqual([
+      { name: 'SHOPIFY_WEBHOOK_SECRET', value: 'w' },
+      { name: 'SHOPIFY_WEBHOOK_SECRET_OLD', value: 'o' },
+      { name: 'SHOPIFY_CLIENT_SECRET', value: 'c' },
+    ]);
   });
 
-  it('prefers SHOPIFY_WEBHOOK_SECRET when set', () => {
-    process.env.SHOPIFY_WEBHOOK_SECRET = 'webhook-secret';
-    process.env.SHOPIFY_CLIENT_SECRET = 'client-secret';
-    expect(resolveWebhookSecret()).toBe('webhook-secret');
+  it('skips unset entries and dedups equal values', () => {
+    setEnv('SHOPIFY_WEBHOOK_SECRET', 'same');
+    setEnv('SHOPIFY_WEBHOOK_SECRET_OLD', undefined);
+    setEnv('SHOPIFY_CLIENT_SECRET', 'same');
+    expect(webhookSecretCandidates()).toEqual([
+      { name: 'SHOPIFY_WEBHOOK_SECRET', value: 'same' },
+    ]);
   });
 
-  it('falls back to SHOPIFY_CLIENT_SECRET when the webhook secret is unset', () => {
-    delete process.env.SHOPIFY_WEBHOOK_SECRET;
-    process.env.SHOPIFY_CLIENT_SECRET = 'client-secret';
-    expect(resolveWebhookSecret()).toBe('client-secret');
+  it('is empty when none are set', () => {
+    SECRET_KEYS.forEach((k) => setEnv(k, undefined));
+    expect(webhookSecretCandidates()).toEqual([]);
+  });
+});
+
+describe('verifyShopifyWebhook (rotation-safe)', () => {
+  const orig = Object.fromEntries(SECRET_KEYS.map((k) => [k, process.env[k]]));
+  afterEach(() => SECRET_KEYS.forEach((k) => setEnv(k, orig[k])));
+
+  it('accepts a signature from ANY configured candidate (Old or New)', () => {
+    setEnv('SHOPIFY_WEBHOOK_SECRET', 'new-secret-with-good-length');
+    setEnv('SHOPIFY_WEBHOOK_SECRET_OLD', 'old-secret-with-good-length');
+    setEnv('SHOPIFY_CLIENT_SECRET', undefined);
+    expect(verifyShopifyWebhook(BODY, sign(BODY, 'new-secret-with-good-length'))).toBe(true);
+    expect(verifyShopifyWebhook(BODY, sign(BODY, 'old-secret-with-good-length'))).toBe(true);
+    expect(verifyShopifyWebhook(BODY, sign(BODY, 'a-secret-nobody-configured'))).toBe(false);
   });
 
-  it('returns null when neither is set', () => {
-    delete process.env.SHOPIFY_WEBHOOK_SECRET;
-    delete process.env.SHOPIFY_CLIENT_SECRET;
-    expect(resolveWebhookSecret()).toBeNull();
+  it('refuses when no candidate secret is set', () => {
+    SECRET_KEYS.forEach((k) => setEnv(k, undefined));
+    expect(verifyShopifyWebhook(BODY, sign(BODY, 'whatever-secret-value'))).toBe(false);
   });
 });
