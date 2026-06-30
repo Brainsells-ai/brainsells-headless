@@ -32,9 +32,14 @@ export function gtagProducts(items: Ga4GtagItem[]): string[] {
       '~nm' + encodeURIComponent(it.item_name ?? '');
     if (it.price != null) seg += '~pr' + it.price;
     if (it.quantity != null) seg += '~qt' + it.quantity;
-    // Caveat 1: ~va (item_variant) was NOT present in the Stufe-0 hit → verify in
-    // DebugView on the first E2E that item_variant actually lands in GA4.
-    if (it.item_variant != null && it.item_variant !== '') {
+    // Caveat 1 (verified live, order #1020): item_variant lands in GA4 via ~va.
+    // Shopify's single-variant default "Default Title" is GA4 noise → suppress it;
+    // real multi-format editions (A4/A3 …) still send their actual variant name.
+    if (
+      it.item_variant != null &&
+      it.item_variant !== '' &&
+      it.item_variant !== 'Default Title'
+    ) {
       seg += '~va' + encodeURIComponent(it.item_variant);
     }
     return 'pr' + (i + 1) + '=' + seg;
