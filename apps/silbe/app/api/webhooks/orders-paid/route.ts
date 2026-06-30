@@ -21,6 +21,13 @@ import { GA_CLIENT_ID_ATTR, GA_SESSION_ID_ATTR } from '@/lib/tracking/ga-cart-at
 import { ga4PurchaseAlreadySent, markGa4PurchaseSent } from '@/lib/shopify-purchase-marker';
 
 export const runtime = 'nodejs';
+// Co-locate with the EU-hosted Stape container (ctsqyrwh.eus.stape.net): the
+// gtag /g/collect send returned 502 from the default US region (iad1) while the
+// same hit succeeds from the EU and Vercel→Google MP works — i.e. Stape's
+// free-tier proxy doesn't serve the US egress. EU egress also fits the EU store
+// (data residency). (Per-route region needs a Pro plan; on Hobby set the
+// project's function region to Frankfurt — this stays a correct hint.)
+export const preferredRegion = 'fra1';
 
 const GA4_MEASUREMENT_ID = 'G-Z06HHP6EFM';
 
@@ -135,12 +142,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     debug,
   });
 
-  // Always 200 → Shopify never retries (no storm). The metafield marker dedups
-  // re-deliveries; we mark only AFTER a successful send so a send failure does
-  // not permanently suppress a later retry.
+  // keepalive is a browser-unload concept — irrelevant (and pointlessly odd) for
+  // a server-side undici fetch, so it is omitted here.
   let sentOk = false;
   try {
-    const r = await fetch(url, { method: 'POST', keepalive: true, cache: 'no-store' });
+    const r = await fetch(url, { method: 'POST', cache: 'no-store' });
     if (!r.ok) {
       console.error(`[orders-paid] gtag returned non-2xx: ${r.status} for ${orderId}`);
     } else {
@@ -154,12 +160,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     console.error(`[orders-paid] gtag send failed for ${orderId}:`, err);
   }
 
-  if (sentOk) {
-    try {
-      await markGa4PurchaseSent(orderGid);
-    } catch (err) {
-      console.error(`[orders-paid] marker write failed for ${orderId} — a re-delivery may duplicate:`, err);
-    }
+  if (!sentOk) {
+    // HMAC passed and the order is valid — only the Stape send failed (e.g. a
+    // transient 502). Return 500 so Shopify RETRIES the delivery; the marker is
+    // set only on success, so the eventual retry re-sends, and once it succeeds
+    // the marker keeps any further re-delivery idempotent.
+    return NextResponse.json({ error: 'gtag send failed' }, { status: 500 });
+  }
+
+  try {
+    await markGa4PurchaseSent(orderGid);
+  } catch (err) {
+    console.error(`[orders-paid] marker write failed for ${orderId} — a re-delivery may duplicate:`, err);
   }
 
   return NextResponse.json({ ok: true });
