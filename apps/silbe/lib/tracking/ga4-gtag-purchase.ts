@@ -21,6 +21,18 @@ export type Ga4GtagItem = {
   quantity?: number | null;
 };
 
+// Per-platform test_event_code (Stufe 2, PR C). When a value is present the Stape
+// tag for that platform maps it to its test_event_code, routing the event to the
+// platform's Test-Events tab instead of prod reporting. Sent as bs_test_<platform>
+// custom params → covered by the same GA4 `bs_` exclude firewall as bs_ud (not
+// PII, but kept out of GA4 for cleanliness). Operationally only ONE platform is
+// set at a time, which enforces the serial Meta→TikTok→Pinterest sequence.
+export type TestEventCodes = {
+  meta?: string | null;
+  tiktok?: string | null;
+  pinterest?: string | null;
+};
+
 // GA4 items → gtag pr<N> segments: id_<id>~nm<name>~pr<price>~qt<qty>[~va<variant>].
 // The structural `~` stay LITERAL — encodeURIComponent leaves `~` untouched, so
 // only the dynamic values get encoded. Do NOT use URLSearchParams (it would
@@ -63,6 +75,8 @@ export function buildPurchaseGtagUrl(args: {
   // consented, hashed PII and MUST be stripped from the GA4 tag Stape-side (the
   // single firewalled param). null/undefined → not sent (GA4-only hit, as before).
   userDataPacked?: string | null;
+  // Per-platform test_event_code — emits bs_test_<platform> for each set value.
+  testEventCodes?: TestEventCodes;
   debug?: boolean;
 }): string {
   const q = [
@@ -84,6 +98,10 @@ export function buildPurchaseGtagUrl(args: {
   // CAPI-only, GA4-firewalled param. base64url is already URL-safe; encode
   // defensively for consistency with the other params.
   if (args.userDataPacked) q.push('ep.bs_ud=' + encodeURIComponent(args.userDataPacked));
+  const t = args.testEventCodes;
+  if (t?.meta) q.push('ep.bs_test_meta=' + encodeURIComponent(t.meta));
+  if (t?.tiktok) q.push('ep.bs_test_tiktok=' + encodeURIComponent(t.tiktok));
+  if (t?.pinterest) q.push('ep.bs_test_pinterest=' + encodeURIComponent(t.pinterest));
   for (const pr of gtagProducts(args.items)) q.push(pr);
   if (args.debug) q.push('_dbg=1'); // DebugView ONLY — off in prod or it won't hit Realtime/reports
   return STAPE_SERVER_BASE + '/g/collect?' + q.join('&');

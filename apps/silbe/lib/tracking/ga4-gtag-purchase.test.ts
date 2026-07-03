@@ -120,4 +120,28 @@ describe('buildPurchaseGtagUrl', () => {
     expect(buildPurchaseGtagUrl({ ...base, userDataPacked: null })).not.toContain('ep.bs_ud=');
     expect(buildPurchaseGtagUrl(base)).not.toContain('ep.bs_ud=');
   });
+
+  it('emits no bs_test_ params when testEventCodes is absent or all empty', () => {
+    expect(buildPurchaseGtagUrl(base)).not.toContain('bs_test_');
+    expect(
+      buildPurchaseGtagUrl({ ...base, testEventCodes: { meta: '', tiktok: null } }),
+    ).not.toContain('bs_test_');
+  });
+
+  it('emits only the set platform test code (serial isolation)', () => {
+    const url = buildPurchaseGtagUrl({ ...base, testEventCodes: { meta: 'TEST123' } });
+    expect(url).toContain('ep.bs_test_meta=TEST123');
+    expect(url).not.toContain('ep.bs_test_tiktok=');
+    expect(url).not.toContain('ep.bs_test_pinterest=');
+  });
+
+  it('maps each platform to its own bs_test_ param', () => {
+    const url = buildPurchaseGtagUrl({
+      ...base,
+      testEventCodes: { meta: 'M1', tiktok: 'T2', pinterest: 'P3' },
+    });
+    expect(url).toContain('ep.bs_test_meta=M1');
+    expect(url).toContain('ep.bs_test_tiktok=T2');
+    expect(url).toContain('ep.bs_test_pinterest=P3');
+  });
 });
