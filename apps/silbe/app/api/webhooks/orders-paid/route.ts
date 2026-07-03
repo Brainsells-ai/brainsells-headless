@@ -16,7 +16,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { verifyShopifyWebhook } from '@/lib/shopify-webhook-hmac';
-import { buildPurchaseGtagUrl, buildGcs, type Ga4GtagItem } from '@/lib/tracking/ga4-gtag-purchase';
+import { buildPurchaseGtagUrl, type Ga4GtagItem } from '@/lib/tracking/ga4-gtag-purchase';
 import {
   GA_CLIENT_ID_ATTR,
   GA_SESSION_ID_ATTR,
@@ -153,13 +153,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     ip: order.client_details?.browser_ip, // IPv6-safe: passed verbatim
     userAgent: order.client_details?.user_agent,
   });
-  const marketingGranted = marketingConsent === 'granted';
-
-  // Consent state for the Stape CAPI tags (defense-in-depth; the hard gate above
-  // is primary). analytics_storage is inferred from a stored GA client_id, which
-  // is only captured under analytics consent (PR A path); ad_storage from the
-  // marketing flag.
-  const gcs = buildGcs(marketingGranted, Boolean(storedClientId));
 
   // DebugView toggle for E2E verification (esp. Caveat 1 item_variant). Env-gated
   // so it can be flipped in Vercel without a code change. Default OFF for prod.
@@ -175,7 +168,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     items,
     // event_id = order id → CAPI dedup against Shopify at-least-once re-delivery.
     eventId: orderId,
-    gcs,
     userDataPacked,
     debug,
   });

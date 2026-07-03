@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   gtagProducts,
   buildPurchaseGtagUrl,
-  buildGcs,
   STAPE_SERVER_BASE,
 } from './ga4-gtag-purchase';
 import { buildUserDataBundle, packUserData } from './user-data';
@@ -94,10 +93,9 @@ describe('buildPurchaseGtagUrl', () => {
   });
 
   // Backward-compat: without the Stufe-2 args the hit is byte-shape-identical to
-  // the verified-green Stufe-0 purchase (no gcs / event_id / bs_ud leak in).
-  it('omits gcs, ep.event_id and ep.bs_ud when their args are absent', () => {
+  // the verified-green Stufe-0 purchase (no event_id / bs_ud leak in).
+  it('omits ep.event_id and ep.bs_ud when their args are absent', () => {
     const url = buildPurchaseGtagUrl(base);
-    expect(url).not.toContain('gcs=');
     expect(url).not.toContain('ep.event_id=');
     expect(url).not.toContain('ep.bs_ud=');
   });
@@ -106,10 +104,6 @@ describe('buildPurchaseGtagUrl', () => {
     expect(buildPurchaseGtagUrl({ ...base, eventId: '13894249349460' })).toContain(
       'ep.event_id=13894249349460',
     );
-  });
-
-  it('adds gcs when given', () => {
-    expect(buildPurchaseGtagUrl({ ...base, gcs: 'G111' })).toContain('gcs=G111');
   });
 
   it('adds ep.bs_ud only when a packed bundle is present', () => {
@@ -125,14 +119,5 @@ describe('buildPurchaseGtagUrl', () => {
     // null / undefined → not attached (GA4-only hit)
     expect(buildPurchaseGtagUrl({ ...base, userDataPacked: null })).not.toContain('ep.bs_ud=');
     expect(buildPurchaseGtagUrl(base)).not.toContain('ep.bs_ud=');
-  });
-});
-
-describe('buildGcs', () => {
-  it('encodes ad_storage then analytics_storage as G1<ad><analytics>', () => {
-    expect(buildGcs(true, true)).toBe('G111');
-    expect(buildGcs(false, false)).toBe('G100');
-    expect(buildGcs(true, false)).toBe('G110');
-    expect(buildGcs(false, true)).toBe('G101');
   });
 });

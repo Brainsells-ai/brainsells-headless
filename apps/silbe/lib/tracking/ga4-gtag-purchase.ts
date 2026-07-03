@@ -46,15 +46,6 @@ export function gtagProducts(items: Ga4GtagItem[]): string[] {
   });
 }
 
-// Google consent-state string: 'G1' + ad_storage bit + analytics_storage bit
-// (e.g. G111 = both granted, G100 = both denied). Defense-in-depth for the Stape
-// CAPI tags, which can be configured to gate on ad_storage. The hard gate stays
-// server-side (bs_ud is only attached when marketing consent is granted); this
-// only reinforces it tag-side.
-export function buildGcs(adGranted: boolean, analyticsGranted: boolean): string {
-  return `G1${adGranted ? '1' : '0'}${analyticsGranted ? '1' : '0'}`;
-}
-
 export function buildPurchaseGtagUrl(args: {
   measurementId: string;
   clientId: string;
@@ -68,8 +59,6 @@ export function buildPurchaseGtagUrl(args: {
   // if the server-side idempotency marker is bypassed. Order id (= transaction_id).
   // GA4 ignores it (GA4 dedups purchase by transaction_id); no firewall needed.
   eventId?: string;
-  // Google consent state (gcs). Omitted → no consent param (prior behavior).
-  gcs?: string;
   // base64url-packed CAPI user_data (bs_ud). Attach ONLY when it exists — it is
   // consented, hashed PII and MUST be stripped from the GA4 tag Stape-side (the
   // single firewalled param). null/undefined → not sent (GA4-only hit, as before).
@@ -91,7 +80,6 @@ export function buildPurchaseGtagUrl(args: {
     'epn.value=' + args.value, // numeric — epn. (not ep.)
     'ep.currency=' + encodeURIComponent(args.currency),
   ];
-  if (args.gcs) q.push('gcs=' + args.gcs);
   if (args.eventId) q.push('ep.event_id=' + encodeURIComponent(args.eventId));
   // CAPI-only, GA4-firewalled param. base64url is already URL-safe; encode
   // defensively for consistency with the other params.
