@@ -76,3 +76,20 @@ export function packUserData(bundle: UserDataBundle): string | null {
 export function unpackUserData(packed: string): UserDataBundle {
   return JSON.parse(Buffer.from(packed, 'base64url').toString('utf8')) as UserDataBundle;
 }
+
+// The HARD server-side consent gate + build + pack in one testable unit. Returns
+// the packed bs_ud value ONLY when the order carries explicit marketing consent
+// ('granted', captured onto the order at begin_checkout in PR A); every other
+// value ('denied' / unknown / absent → null) yields null and NO user_data leaves
+// the server. `marketingConsent` is the raw _marketing_consent order attribute.
+export function resolveConsentedUserData(args: {
+  marketingConsent: string | null | undefined;
+  email?: string | null;
+  ip?: string | null;
+  userAgent?: string | null;
+}): string | null {
+  if (args.marketingConsent !== 'granted') return null;
+  return packUserData(
+    buildUserDataBundle({ email: args.email, ip: args.ip, userAgent: args.userAgent }),
+  );
+}

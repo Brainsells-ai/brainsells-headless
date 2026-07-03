@@ -6,6 +6,7 @@ import {
   buildUserDataBundle,
   packUserData,
   unpackUserData,
+  resolveConsentedUserData,
 } from './user-data';
 
 // Independently-known vectors (computed via node crypto, canonical values):
@@ -88,5 +89,41 @@ describe('packUserData / unpackUserData', () => {
     // url-safe: no +, /, or = padding that would need query-string encoding
     expect(packed!).not.toMatch(/[+/=]/);
     expect(unpackUserData(packed!)).toEqual(bundle);
+  });
+});
+
+describe('resolveConsentedUserData — server-side hard consent gate', () => {
+  const IPV6 = '2001:4bc9:b06c:7dc9:3cc8:4a17:70d0:d645';
+  const full = { email: 'Test@Example.com', ip: IPV6, userAgent: 'Mozilla/5.0' };
+
+  it('granted → packed bundle with em (hashed) + ip (IPv6 verbatim) + ua', () => {
+    const packed = resolveConsentedUserData({ marketingConsent: 'granted', ...full });
+    expect(packed).toBeTypeOf('string');
+    expect(unpackUserData(packed!)).toEqual({
+      em: SHA256_TEST_EMAIL, // normalized before hashing
+      ip: IPV6,
+      ua: 'Mozilla/5.0',
+    });
+  });
+
+  it('denied → null (no user_data leaves the server)', () => {
+    expect(resolveConsentedUserData({ marketingConsent: 'denied', ...full })).toBeNull();
+  });
+
+  it('unknown / absent consent → null (fail closed)', () => {
+    expect(resolveConsentedUserData({ marketingConsent: null, ...full })).toBeNull();
+    expect(resolveConsentedUserData({ marketingConsent: undefined, ...full })).toBeNull();
+    expect(resolveConsentedUserData({ marketingConsent: '', ...full })).toBeNull();
+  });
+
+  it('granted but no email → em omitted, ip/ua still sent', () => {
+    const packed = resolveConsentedUserData({ marketingConsent: 'granted', ip: IPV6, userAgent: 'UA' });
+    expect(unpackUserData(packed!)).toEqual({ ip: IPV6, ua: 'UA' });
+  });
+
+  it('granted but nothing identifiable → null (empty bundle packs to null)', () => {
+    expect(
+      resolveConsentedUserData({ marketingConsent: 'granted', email: null, ip: null, userAgent: null }),
+    ).toBeNull();
   });
 });

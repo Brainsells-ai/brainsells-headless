@@ -16,8 +16,13 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { verifyShopifyWebhook } from '@/lib/shopify-webhook-hmac';
-import { buildPurchaseGtagUrl, type Ga4GtagItem } from '@/lib/tracking/ga4-gtag-purchase';
-import { GA_CLIENT_ID_ATTR, GA_SESSION_ID_ATTR } from '@/lib/tracking/ga-cart-attributes';
+import { buildPurchaseGtagUrl, buildGcs, type Ga4GtagItem } from '@/lib/tracking/ga4-gtag-purchase';
+import {
+  GA_CLIENT_ID_ATTR,
+  GA_SESSION_ID_ATTR,
+  MARKETING_CONSENT_ATTR,
+} from '@/lib/tracking/ga-cart-attributes';
+import { resolveConsentedUserData } from '@/lib/tracking/user-data';
 import { ga4PurchaseAlreadySent, markGa4PurchaseSent } from '@/lib/shopify-purchase-marker';
 
 export const runtime = 'nodejs';
@@ -43,12 +48,20 @@ type OrdersPaidLineItem = {
   quantity: number;
 };
 type NoteAttribute = { name: string; value: string | null };
+// client_details is the customer's browser context recorded by Shopify at
+// checkout — NOT the webhook request source (never Vercel's egress IP). Verified
+// on real orders #1020/#1025: browser_ip = customer IPv6, user_agent = customer
+// UA, both present (app has protected-customer-data access). These feed the CAPI
+// user_data (ip/ua PLAINTEXT per platform requirement).
+type ClientDetails = { browser_ip?: string | null; user_agent?: string | null };
 type OrdersPaidWebhook = {
   id: number | string;
   total_price: string | null;
   currency: string | null;
   line_items: OrdersPaidLineItem[];
   note_attributes: NoteAttribute[];
+  email?: string | null;
+  client_details?: ClientDetails | null;
 };
 
 // Fallback client_id when the GA id was not captured on the order (e.g. orders
@@ -127,6 +140,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     quantity: li.quantity,
   }));
 
+  // CAPI user_data (Stufe 2) — HARD server-side consent gate. Attach the hashed
+  // email + plaintext IP/UA bundle ONLY when the order carries explicit marketing
+  // (ad_user_data) consent, captured at begin_checkout (PR A). denied / unknown /
+  // absent → no bundle: the purchase still sends (value + transaction_id) but no
+  // PII reaches Meta/TikTok/Pinterest. Stape strips bs_ud from the GA4 tag so GA4
+  // never sees it either.
+  const marketingConsent = noteAttr(order.note_attributes, MARKETING_CONSENT_ATTR);
+  const userDataPacked = resolveConsentedUserData({
+    marketingConsent,
+    email: order.email,
+    ip: order.client_details?.browser_ip, // IPv6-safe: passed verbatim
+    userAgent: order.client_details?.user_agent,
+  });
+  const marketingGranted = marketingConsent === 'granted';
+
+  // Consent state for the Stape CAPI tags (defense-in-depth; the hard gate above
+  // is primary). analytics_storage is inferred from a stored GA client_id, which
+  // is only captured under analytics consent (PR A path); ad_storage from the
+  // marketing flag.
+  const gcs = buildGcs(marketingGranted, Boolean(storedClientId));
+
   // DebugView toggle for E2E verification (esp. Caveat 1 item_variant). Env-gated
   // so it can be flipped in Vercel without a code change. Default OFF for prod.
   const debug = process.env.GA4_PURCHASE_DEBUG === '1';
@@ -139,6 +173,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     value,
     currency,
     items,
+    // event_id = order id → CAPI dedup against Shopify at-least-once re-delivery.
+    eventId: orderId,
+    gcs,
+    userDataPacked,
     debug,
   });
 
@@ -151,9 +189,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       console.error(`[orders-paid] gtag returned non-2xx: ${r.status} for ${orderId}`);
     } else {
       sentOk = true;
+      // NEVER log the raw URL as-is: bs_ud carries the (plaintext) customer IP/UA.
+      // Redact the bs_ud value from the debug URL; the non-PII ud flag records
+      // whether a consented bundle was attached.
+      const safeUrl = url.replace(/(ep\.bs_ud=)[^&]*/, '$1<redacted>');
       console.log(
-        `[orders-paid] purchase sent for ${orderId} (${value} ${currency}, ${items.length} items)` +
-          (debug ? ` [debug] ${url}` : ''),
+        `[orders-paid] purchase sent for ${orderId} (${value} ${currency}, ${items.length} items, ` +
+          `ud=${userDataPacked ? 'attached' : 'none'})` +
+          (debug ? ` [debug] ${safeUrl}` : ''),
       );
     }
   } catch (err) {

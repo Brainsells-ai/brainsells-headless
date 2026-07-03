@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   gtagProducts,
   buildPurchaseGtagUrl,
+  buildGcs,
   STAPE_SERVER_BASE,
 } from './ga4-gtag-purchase';
+import { buildUserDataBundle, packUserData } from './user-data';
 
 describe('gtagProducts', () => {
   it('builds id_~nm~pr~qt with literal ~ delimiters', () => {
@@ -89,5 +91,48 @@ describe('buildPurchaseGtagUrl', () => {
   it('adds _dbg=1 only when debug', () => {
     expect(buildPurchaseGtagUrl(base)).not.toContain('_dbg=1');
     expect(buildPurchaseGtagUrl({ ...base, debug: true })).toContain('_dbg=1');
+  });
+
+  // Backward-compat: without the Stufe-2 args the hit is byte-shape-identical to
+  // the verified-green Stufe-0 purchase (no gcs / event_id / bs_ud leak in).
+  it('omits gcs, ep.event_id and ep.bs_ud when their args are absent', () => {
+    const url = buildPurchaseGtagUrl(base);
+    expect(url).not.toContain('gcs=');
+    expect(url).not.toContain('ep.event_id=');
+    expect(url).not.toContain('ep.bs_ud=');
+  });
+
+  it('adds ep.event_id when eventId is given (CAPI dedup = order id)', () => {
+    expect(buildPurchaseGtagUrl({ ...base, eventId: '13894249349460' })).toContain(
+      'ep.event_id=13894249349460',
+    );
+  });
+
+  it('adds gcs when given', () => {
+    expect(buildPurchaseGtagUrl({ ...base, gcs: 'G111' })).toContain('gcs=G111');
+  });
+
+  it('adds ep.bs_ud only when a packed bundle is present', () => {
+    const packed = packUserData(
+      buildUserDataBundle({
+        email: 'test@example.com',
+        ip: '2001:4bc9:b06c:7dc9:3cc8:4a17:70d0:d645', // IPv6 passthrough
+        userAgent: 'Mozilla/5.0',
+      }),
+    )!;
+    const withUd = buildPurchaseGtagUrl({ ...base, userDataPacked: packed });
+    expect(withUd).toContain('ep.bs_ud=' + packed); // base64url is URL-safe → unchanged
+    // null / undefined → not attached (GA4-only hit)
+    expect(buildPurchaseGtagUrl({ ...base, userDataPacked: null })).not.toContain('ep.bs_ud=');
+    expect(buildPurchaseGtagUrl(base)).not.toContain('ep.bs_ud=');
+  });
+});
+
+describe('buildGcs', () => {
+  it('encodes ad_storage then analytics_storage as G1<ad><analytics>', () => {
+    expect(buildGcs(true, true)).toBe('G111');
+    expect(buildGcs(false, false)).toBe('G100');
+    expect(buildGcs(true, false)).toBe('G110');
+    expect(buildGcs(false, true)).toBe('G101');
   });
 });
