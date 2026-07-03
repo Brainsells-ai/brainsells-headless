@@ -47,5 +47,10 @@ apps/silbe/.claude/
 # SILBE Session-Handover-Docs (gehoeren ins Brain-Repo)
 silbe-r8-handover-*.md
 
+# Local headless live-state handover — canonical for headless live-state, local-only.
+# NOT committed, NOT the Brain (history still folds to the Brain unchanged).
+# Purely local Merlin tool (no ADR / no Brain write). See .claude/CLAUDE.md § Session Handover.
+HANDOFF.md
+
 # Playwright MCP scratch outputs (snapshots, console logs)
 .playwright-mcp/

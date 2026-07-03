@@ -147,10 +147,31 @@ External resources Claude Code may need:
   source for SKU posters, logos, author portraits, favicon).
 - Creatives bundle: `C:\Users\Administrator\Downloads\silbe-creatives-bundle-2026-05-06\`.
 
+## Session Handover — Live-State (headless-canonical)
+
+Live-State for brainsells-headless/SILBE lives in **`HANDOFF.md`** (repo root, gitignored,
+local-only). Brain `NOW.md` / `read_now()` are **NOT** canonical for headless live-state — use them
+for history/detail only. A purely local Merlin tool (no ADR, no Brain write; an allowed local zone).
+Rationale: only Merlin works on headless; Brain `NOW.md` is a `core_system_files` founder artifact
+that merlin's pre-commit role-hook forbids committing (`^NOW\.md$`), so a headless session can never
+refresh it → structural staleness. Session history still folds fully into the Brain (folds
+unchanged); this mechanism is purely additive and replaces nothing.
+
+- **Session start:** read `HANDOFF.md` FIRST as the live-state primary source; `read_now()`/Brain
+  only supplement it (history/detail). If `HANDOFF.md` exists and is fresher than Brain `NOW.md`,
+  HANDOFF.md wins for live-state.
+- **Session end (mandatory, IN ADDITION to the Brain fold — never replaces it):** after the fold,
+  overwrite `HANDOFF.md` (idempotent, no append) so Merlin can copy it 1:1 as a Chat entry: first
+  line = the canonicity header (`Kanonischer headless/SILBE Live-State, Stand <ISO> … read_now()
+  ist für headless nicht aktuell`) · Active State (verified) · Open/Next (with honest "not verified"
+  flags) · a pointer to the latest fold path. **No secrets in the file.**
+
 ## How to Start a Session
 
 1. Read this file (auto-loaded).
-2. Read `docs/setup-status.md` for the current config snapshot.
-3. Read the relevant `docs/MEGAPROMPT.md` phase section.
-4. Read the latest `.claude/handoff-phase-N.md` if mid-stream.
-5. Then propose tasks and proceed.
+2. **Read `HANDOFF.md` (repo root) FIRST for live-state** — canonical for headless live-state (see
+   Session Handover above). `read_now()`/Brain are supplementary (history/detail).
+3. Read `docs/setup-status.md` for the current config snapshot.
+4. Read the relevant `docs/MEGAPROMPT.md` phase section.
+5. Read the latest `.claude/handoff-phase-N.md` if mid-stream.
+6. Then propose tasks and proceed.
