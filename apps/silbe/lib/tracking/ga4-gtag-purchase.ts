@@ -54,6 +54,15 @@ export function buildPurchaseGtagUrl(args: {
   value: string | number;
   currency: string;
   items: Ga4GtagItem[];
+  // event_id for browser↔server CAPI dedup — reused across a Shopify
+  // at-least-once re-delivery so Meta/TikTok/Pinterest drop the duplicate even
+  // if the server-side idempotency marker is bypassed. Order id (= transaction_id).
+  // GA4 ignores it (GA4 dedups purchase by transaction_id); no firewall needed.
+  eventId?: string;
+  // base64url-packed CAPI user_data (bs_ud). Attach ONLY when it exists — it is
+  // consented, hashed PII and MUST be stripped from the GA4 tag Stape-side (the
+  // single firewalled param). null/undefined → not sent (GA4-only hit, as before).
+  userDataPacked?: string | null;
   debug?: boolean;
 }): string {
   const q = [
@@ -71,6 +80,10 @@ export function buildPurchaseGtagUrl(args: {
     'epn.value=' + args.value, // numeric — epn. (not ep.)
     'ep.currency=' + encodeURIComponent(args.currency),
   ];
+  if (args.eventId) q.push('ep.event_id=' + encodeURIComponent(args.eventId));
+  // CAPI-only, GA4-firewalled param. base64url is already URL-safe; encode
+  // defensively for consistency with the other params.
+  if (args.userDataPacked) q.push('ep.bs_ud=' + encodeURIComponent(args.userDataPacked));
   for (const pr of gtagProducts(args.items)) q.push(pr);
   if (args.debug) q.push('_dbg=1'); // DebugView ONLY — off in prod or it won't hit Realtime/reports
   return STAPE_SERVER_BASE + '/g/collect?' + q.join('&');
