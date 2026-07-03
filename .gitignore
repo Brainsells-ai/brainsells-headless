@@ -49,7 +49,7 @@ silbe-r8-handover-*.md
 
 # Local headless live-state handover — canonical for headless live-state, local-only.
 # NOT committed, NOT the Brain (history still folds to the Brain unchanged).
-# See ADR silbe-headless-live-state-local-handoff.
+# Purely local Merlin tool (no ADR / no Brain write). See .claude/CLAUDE.md § Session Handover.
 HANDOFF.md
 
 # Playwright MCP scratch outputs (snapshots, console logs)

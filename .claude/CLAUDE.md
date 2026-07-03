@@ -151,10 +151,9 @@ External resources Claude Code may need:
 
 Live-State for brainsells-headless/SILBE lives in **`HANDOFF.md`** (repo root, gitignored,
 local-only). Brain `NOW.md` / `read_now()` are **NOT** canonical for headless live-state — use them
-for history/detail only. Deliberate, headless-scoped exception to brain-first live-state (ADR draft
-`decisions/drafts/…silbe-headless-live-state-local-handoff`, pending Aleks-promotion). Rationale:
-only Merlin works on headless; Brain `NOW.md` is a `core_system_files` founder artifact that
-merlin's pre-commit role-hook forbids committing (`^NOW\.md$`), so a headless session can never
+for history/detail only. A purely local Merlin tool (no ADR, no Brain write; an allowed local zone).
+Rationale: only Merlin works on headless; Brain `NOW.md` is a `core_system_files` founder artifact
+that merlin's pre-commit role-hook forbids committing (`^NOW\.md$`), so a headless session can never
 refresh it → structural staleness. Session history still folds fully into the Brain (folds
 unchanged); this mechanism is purely additive and replaces nothing.
 
@@ -162,9 +161,10 @@ unchanged); this mechanism is purely additive and replaces nothing.
   only supplement it (history/detail). If `HANDOFF.md` exists and is fresher than Brain `NOW.md`,
   HANDOFF.md wins for live-state.
 - **Session end (mandatory, IN ADDITION to the Brain fold — never replaces it):** after the fold,
-  overwrite `HANDOFF.md` (idempotent, no append) with: the verbatim canonicity header · Active State
-  (verified, NOW.md-style) · Open/Next (with honest "not verified" flags) · a pointer to the latest
-  fold path. **No secrets in the file.**
+  overwrite `HANDOFF.md` (idempotent, no append) so Merlin can copy it 1:1 as a Chat entry: first
+  line = the canonicity header (`Kanonischer headless/SILBE Live-State, Stand <ISO> … read_now()
+  ist für headless nicht aktuell`) · Active State (verified) · Open/Next (with honest "not verified"
+  flags) · a pointer to the latest fold path. **No secrets in the file.**
 
 ## How to Start a Session
 
