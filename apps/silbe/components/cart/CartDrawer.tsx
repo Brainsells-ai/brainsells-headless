@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { useCartStore } from '@/lib/cart-store';
 import { trackBeginCheckout } from '@/lib/tracking/events';
-import { captureGaIdentifiersToCart } from '@/lib/tracking/ga-identifiers';
+import { captureCheckoutAttributes } from '@/lib/tracking/ga-identifiers';
 import { CartLineItem } from './CartLineItem';
 import { EmptyCart } from './EmptyCart';
 import { FreeShipBar } from './FreeShipBar';
@@ -284,13 +284,14 @@ export function CartDrawer() {
                 // begin_checkout before the hard navigation to the Shopify
                 // checkout domain. dataLayer.push is synchronous; tag
                 // delivery across the navigation is GTM/sendBeacon terrain
-                // (Schritt 3), not a code concern here. captureGaIdentifiers
-                // persists the GA client_id onto the cart (→ order
-                // customAttributes) for the server-side refund event; it is
-                // analytics-consent-gated and keepalive so it survives the nav.
+                // (Schritt 3), not a code concern here. captureCheckoutAttributes
+                // persists the GA client_id (analytics consent → server-side
+                // refund event) and the _marketing_consent flag (marketing
+                // consent → server-side CAPI user_data) onto the cart (→ order
+                // customAttributes) in one write; keepalive so it survives the nav.
                 onClick={() => {
                   trackBeginCheckout(cart);
-                  void captureGaIdentifiersToCart(cart.id);
+                  void captureCheckoutAttributes(cart.id);
                 }}
                 style={{
                   display: 'block',

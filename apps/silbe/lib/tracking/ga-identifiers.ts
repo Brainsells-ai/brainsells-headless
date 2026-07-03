@@ -1,21 +1,34 @@
-// Browser-side capture of the GA4 client_id + session_id into Shopify cart
-// attributes — the storefront half of "Weg A" server-side refund attribution.
+// Browser-side capture of checkout attributes into the Shopify cart — the
+// storefront half of server-side "Weg A". Two INDEPENDENT signals ride onto the
+// cart (→ order customAttributes) at begin_checkout, written in ONE mutation:
 //
-// The refund event is sent server-side from the refunds/create webhook, where
-// there is no browser and no _ga cookie. To still attribute the refund to the
-// original purchase's GA user, we persist the client_id (and session_id) at
-// begin_checkout: cart attributes ride through to the order's customAttributes,
-// which the webhook reads back. See lib/tracking/ga-cart-attributes.ts.
+//   1. GA4 client_id + session_id — analytics-consent-gated. Lets the
+//      refunds/create webhook attribute the server-side refund to the original
+//      purchase's GA user (no browser / no _ga cookie server-side).
+//   2. _marketing_consent (granted|denied) — MARKETING-consent-gated,
+//      INDEPENDENT of the analytics gate. Lets the orders/paid webhook decide
+//      whether it may attach CAPI user_data to the Meta/TikTok/Pinterest tags.
 //
-// Consent: analytics-only gate. We mirror the dataLayer push gate (events.ts)
-// but require ANALYTICS specifically — persisting a GA identifier is an
-// analytics-storage decision, not a marketing one. Without analytics consent we
-// write nothing (fail closed), consistent with Consent Mode v2.
+// Why one mutation, not two: cartAttributesUpdate REPLACES the full attribute
+// set (it does not merge), so a second call would clobber the first. The two
+// GATES stay independent (each signal is included on its own consent
+// condition); only the WRITE is shared. Critically, "analytics denied but
+// marketing granted" still persists _marketing_consent — it must not hang off
+// the analytics gate.
+//
+// Consent model: persisting a GA identifier is an analytics-storage decision;
+// the marketing-consent flag is an ad-consent decision. Each fails closed on its
+// own category, consistent with Consent Mode v2.
 
 import { isConsentGranted } from '@/lib/consent/consent-value';
 import { getCustomerPrivacy } from '@/lib/consent/shopify-consent';
 import { updateCartAttributes } from '@/lib/shopify-cart';
-import { GA_CLIENT_ID_ATTR, GA_SESSION_ID_ATTR } from './ga-cart-attributes';
+import {
+  GA_CLIENT_ID_ATTR,
+  GA_SESSION_ID_ATTR,
+  MARKETING_CONSENT_ATTR,
+  type MarketingConsentValue,
+} from './ga-cart-attributes';
 
 // ─── Pure parsers (unit-testable, no document access) ───────────────────────
 
@@ -79,22 +92,62 @@ function analyticsConsentGranted(): boolean {
   }
 }
 
+// Tri-state on purpose: 'granted' | 'denied' when the Customer Privacy API can
+// be read, else null (API not loaded / read threw) → we persist NOTHING and the
+// webhook treats an absent attribute as no consent (fail closed). Independent of
+// the analytics gate above. An undecided/empty category folds to 'denied' via
+// isConsentGranted — no explicit ad consent ⇒ no user_data.
+function readMarketingConsent(): MarketingConsentValue | null {
+  const api = getCustomerPrivacy();
+  if (!api) return null;
+  try {
+    return isConsentGranted(api.currentVisitorConsent()?.marketing) ? 'granted' : 'denied';
+  } catch {
+    return null;
+  }
+}
+
+// ─── Pure attribute composer (unit-testable, no window access) ──────────────
+
+// Composes the cart attribute list from the two independent signals. GA ids are
+// included only under analytics consent AND a present client_id; the marketing
+// flag is included whenever it is known (non-null), on its OWN gate. Returns []
+// when there is nothing to persist so the caller can skip the write entirely.
+export function buildCheckoutAttributes(input: {
+  analyticsGranted: boolean;
+  clientId: string | null;
+  sessionId: string | null;
+  marketingConsent: MarketingConsentValue | null;
+}): { key: string; value: string }[] {
+  const attributes: { key: string; value: string }[] = [];
+  if (input.analyticsGranted && input.clientId) {
+    attributes.push({ key: GA_CLIENT_ID_ATTR, value: input.clientId });
+    if (input.sessionId) attributes.push({ key: GA_SESSION_ID_ATTR, value: input.sessionId });
+  }
+  if (input.marketingConsent) {
+    attributes.push({ key: MARKETING_CONSENT_ATTR, value: input.marketingConsent });
+  }
+  return attributes;
+}
+
 // ─── Public capture ─────────────────────────────────────────────────────────
 
-// Fire-and-forget at begin_checkout. Persists the GA identifiers onto the cart
-// (→ order customAttributes) when analytics consent is granted and the _ga
-// cookie exists. Never throws and never blocks checkout: a failed capture only
-// costs refund attribution, which falls back to a synthetic client_id server
-// side.
-export async function captureGaIdentifiersToCart(cartId: string): Promise<void> {
+// Fire-and-forget at begin_checkout. Persists the GA identifiers (analytics
+// consent) and the marketing-consent flag (marketing consent, independent) onto
+// the cart → order customAttributes, in a SINGLE cartAttributesUpdate. Never
+// throws and never blocks checkout: a failed capture only costs refund
+// attribution (synthetic client_id fallback server-side) and CAPI match quality.
+export async function captureCheckoutAttributes(cartId: string): Promise<void> {
   if (typeof window === 'undefined') return;
-  if (!analyticsConsentGranted()) return;
 
   const { clientId, sessionId } = readGaIdentifiers();
-  if (!clientId) return; // GA cookie not set yet — nothing to persist.
-
-  const attributes = [{ key: GA_CLIENT_ID_ATTR, value: clientId }];
-  if (sessionId) attributes.push({ key: GA_SESSION_ID_ATTR, value: sessionId });
+  const attributes = buildCheckoutAttributes({
+    analyticsGranted: analyticsConsentGranted(),
+    clientId,
+    sessionId,
+    marketingConsent: readMarketingConsent(),
+  });
+  if (attributes.length === 0) return;
 
   try {
     // keepalive: the click navigates to the Shopify checkout domain; without it
