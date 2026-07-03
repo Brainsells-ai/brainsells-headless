@@ -47,5 +47,9 @@ apps/silbe/.claude/
 # SILBE Session-Handover-Docs (gehoeren ins Brain-Repo)
 silbe-r8-handover-*.md
 
+# Live-State handover (repo-root, per-session; declared gitignored in CLAUDE.md —
+# must never be committed or it re-creates the split-brain it exists to avoid)
+HANDOFF.md
+
 # Playwright MCP scratch outputs (snapshots, console logs)
 .playwright-mcp/
