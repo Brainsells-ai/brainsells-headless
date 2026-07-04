@@ -154,6 +154,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     userAgent: order.client_details?.user_agent,
   });
 
+  // Per-platform test_event_code (Stufe 2, PR C) — env-gated so a platform can be
+  // routed to its Test-Events tab from Vercel without a code change. Set ONE at a
+  // time (Meta → then TikTok → then Pinterest); leaving one set in prod routes
+  // real conversions to the Test tab (undercount), so warn loudly when active.
+  const testEventCodes = {
+    meta: process.env.META_TEST_EVENT_CODE,
+    tiktok: process.env.TIKTOK_TEST_EVENT_CODE,
+    pinterest: process.env.PINTEREST_TEST_EVENT_CODE,
+  };
+  const activeTestPlatforms = Object.entries(testEventCodes)
+    .filter(([, v]) => v)
+    .map(([k]) => k);
+  if (activeTestPlatforms.length > 0) {
+    console.warn(
+      `[orders-paid] TEST-EVENT MODE active for: ${activeTestPlatforms.join(', ')} — ` +
+        `these events route to the platform Test-Events tab, not prod. Unset in prod.`,
+    );
+  }
+
   // DebugView toggle for E2E verification (esp. Caveat 1 item_variant). Env-gated
   // so it can be flipped in Vercel without a code change. Default OFF for prod.
   const debug = process.env.GA4_PURCHASE_DEBUG === '1';
@@ -169,6 +188,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // event_id = order id → CAPI dedup against Shopify at-least-once re-delivery.
     eventId: orderId,
     userDataPacked,
+    testEventCodes,
     debug,
   });
 
