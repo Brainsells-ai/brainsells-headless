@@ -125,6 +125,29 @@ export const EDITIONS: readonly SkuManifest[] = [
     themes: ['Sehnsucht', 'Wien', 'Geduld', 'Brief', 'Sprache'],
   },
 
+  // ─── WEGWERF – NICHT MERGEN ────────────────────────────────────────────
+  // Temporary canonical entry for the €0.50 dbg product (Storefront handle
+  // dbg-x7k2p, "Test-debug") so /editionen/dbg-x7k2p resolves on a PREVIEW
+  // deploy and can be added to the cart → drawer checkout writes
+  // _marketing_consent → orders/paid attaches bs_ud. Firewall-proof only.
+  // Clones the active rilke edition's editorial fields (real essay/voice so the
+  // PDP renders); the actual price/variant come from the Storefront product.
+  // This branch (throwaway/dbg-canonical-firewall-test) MUST NEVER merge to
+  // main — deleting it removes dbg from CANONICAL_HANDLES with no cleanup.
+  {
+    handle: 'dbg-x7k2p',
+    product_type: 'edition',
+    active: true,
+    voice: 'rilke',
+    work_title: '›Briefe an einen jungen Dichter‹',
+    work_year: 1903,
+    quote_full: '„Habe Geduld gegen alles Ungelöste in Ihrem Herzen.“',
+    format: 'A3',
+    dimensions_cm: '29.7 × 42',
+    editorial_essay_handle: 'rilke-habe-geduld',
+    themes: ['Sehnsucht', 'Wien', 'Geduld', 'Brief', 'Sprache'],
+  },
+
   // ─── Kafka ─────────────────────────────────────────────────────────────
   {
     handle: 'silbe-kafka-axt',
