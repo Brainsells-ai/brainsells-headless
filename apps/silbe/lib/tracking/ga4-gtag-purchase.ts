@@ -9,9 +9,10 @@
 // Wire format is byte-for-byte the verified Stufe-0 hit (and the now-deprecated
 // pixel template): v=2, tid, gtm, _p, cid (bare), sid, sct, seg, en=purchase,
 // ep.transaction_id, epn.value, ep.currency, pr<N>=id_~nm~pr~qt[~va], _et, _dbg.
-
-export const STAPE_SERVER_BASE = 'https://ctsqyrwh.eus.stape.net';
-const GTAG_GTM_FINGERPRINT = '45je'; // from the green Stufe-0 hit (gtm=)
+//
+// Pure/env-free by design: the shop-specific stapeServerBase + gtmFingerprint are
+// INJECTED as args (like measurementId), read by the caller from brand.config.
+// This keeps the builder deterministic and unit-testable without any environment.
 
 export type Ga4GtagItem = {
   item_id: string;
@@ -60,6 +61,10 @@ export function gtagProducts(items: Ga4GtagItem[]): string[] {
 
 export function buildPurchaseGtagUrl(args: {
   measurementId: string;
+  // EU Stape server-container base + gtag `gtm=` fingerprint — injected from
+  // brand.config (per-shop). Kept as args so this builder stays pure/env-free.
+  stapeServerBase: string;
+  gtmFingerprint: string;
   clientId: string;
   sessionId: string;
   transactionId: string;
@@ -82,7 +87,7 @@ export function buildPurchaseGtagUrl(args: {
   const q = [
     'v=2',
     'tid=' + args.measurementId,
-    'gtm=' + GTAG_GTM_FINGERPRINT,
+    'gtm=' + args.gtmFingerprint,
     '_p=1',
     'cid=' + encodeURIComponent(args.clientId),
     'sid=' + encodeURIComponent(args.sessionId),
@@ -104,5 +109,5 @@ export function buildPurchaseGtagUrl(args: {
   if (t?.pinterest) q.push('ep.bs_test_pinterest=' + encodeURIComponent(t.pinterest));
   for (const pr of gtagProducts(args.items)) q.push(pr);
   if (args.debug) q.push('_dbg=1'); // DebugView ONLY — off in prod or it won't hit Realtime/reports
-  return STAPE_SERVER_BASE + '/g/collect?' + q.join('&');
+  return args.stapeServerBase + '/g/collect?' + q.join('&');
 }

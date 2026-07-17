@@ -24,6 +24,7 @@ import {
 } from '@/lib/tracking/ga-cart-attributes';
 import { resolveConsentedUserData } from '@/lib/tracking/user-data';
 import { ga4PurchaseAlreadySent, markGa4PurchaseSent } from '@/lib/shopify-purchase-marker';
+import { brandConfig } from '@/lib/brand.config';
 
 export const runtime = 'nodejs';
 // Co-locate with the EU-hosted Stape container (ctsqyrwh.eus.stape.net): the
@@ -32,9 +33,11 @@ export const runtime = 'nodejs';
 // free-tier proxy doesn't serve the US egress. EU egress also fits the EU store
 // (data residency). (Per-route region needs a Pro plan; on Hobby set the
 // project's function region to Frankfurt — this stays a correct hint.)
+// Intentionally NOT in brand.config: Vercel reads `preferredRegion` via static
+// analysis at BUILD time, so it must be an inline literal export — a runtime env
+// getter can't satisfy it. This is the one per-shop value that lives at its use
+// site (Block A, documented exception).
 export const preferredRegion = 'fra1';
-
-const GA4_MEASUREMENT_ID = 'G-Z06HHP6EFM';
 
 // The orders/paid REST payload carries everything we need (HMAC-signed by
 // Shopify, so trusted — no Admin lookup). id is already the NUMERIC order id, so
@@ -178,7 +181,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const debug = process.env.GA4_PURCHASE_DEBUG === '1';
 
   const url = buildPurchaseGtagUrl({
-    measurementId: GA4_MEASUREMENT_ID,
+    measurementId: brandConfig.ga4.measurementId,
+    stapeServerBase: brandConfig.stape.serverBase,
+    gtmFingerprint: brandConfig.stape.gtmFingerprint,
     clientId,
     sessionId,
     transactionId: orderId,

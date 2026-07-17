@@ -22,6 +22,7 @@ import {
 import { signWiderrufToken } from '@/lib/widerruf-token';
 import { trackKlaviyoEvent } from '@/lib/klaviyo-events';
 import { verifyShopifyWebhook } from '@/lib/shopify-webhook-hmac';
+import { brandConfig } from '@/lib/brand.config';
 
 export const runtime = 'nodejs';
 
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     expiresAt,
   });
 
-  await trackKlaviyoEvent('Bestellung Editorial', email, {
+  await trackKlaviyoEvent(brandConfig.klaviyo.editorialEvent, email, {
     widerruf_token: widerrufToken,
     order_number: order.name,
     order_id: orderGid,

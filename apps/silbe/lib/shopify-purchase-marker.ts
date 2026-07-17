@@ -18,17 +18,22 @@
 // Requires `read_orders` + `write_orders` (already held for the Widerruf flow).
 
 import { shopifyAdminFetch } from '@/lib/shopify-admin';
+import { brandConfig } from '@/lib/brand.config';
 
-const MARKER_NAMESPACE = 'silbe';
 const MARKER_KEY = 'ga4_purchase_sent';
 
-const READ_QUERY = /* GraphQL */ `
-  query Ga4PurchaseMarker($id: ID!) {
-    order(id: $id) {
-      metafield(namespace: "${MARKER_NAMESPACE}", key: "${MARKER_KEY}") { value }
+// Built per-call so the namespace is read lazily from brand.config (env) at
+// request time — a module-level const would interpolate it at import, forcing an
+// eager env read during build/test.
+function readQuery(namespace: string): string {
+  return /* GraphQL */ `
+    query Ga4PurchaseMarker($id: ID!) {
+      order(id: $id) {
+        metafield(namespace: "${namespace}", key: "${MARKER_KEY}") { value }
+      }
     }
-  }
-`;
+  `;
+}
 
 const SET_MUTATION = /* GraphQL */ `
   mutation SetGa4PurchaseMarker($metafields: [MetafieldsSetInput!]!) {
@@ -44,7 +49,9 @@ type SetResp = {
 };
 
 export async function ga4PurchaseAlreadySent(orderGid: string): Promise<boolean> {
-  const data = await shopifyAdminFetch<ReadResp>(READ_QUERY, { id: orderGid });
+  const data = await shopifyAdminFetch<ReadResp>(readQuery(brandConfig.marker.namespace), {
+    id: orderGid,
+  });
   return data.order?.metafield?.value === 'true';
 }
 
@@ -53,7 +60,7 @@ export async function markGa4PurchaseSent(orderGid: string): Promise<void> {
     metafields: [
       {
         ownerId: orderGid,
-        namespace: MARKER_NAMESPACE,
+        namespace: brandConfig.marker.namespace,
         key: MARKER_KEY,
         type: 'boolean',
         value: 'true',
