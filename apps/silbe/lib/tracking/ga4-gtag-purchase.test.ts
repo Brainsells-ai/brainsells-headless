@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import {
-  gtagProducts,
-  buildPurchaseGtagUrl,
-  STAPE_SERVER_BASE,
-} from './ga4-gtag-purchase';
+import { gtagProducts, buildPurchaseGtagUrl } from './ga4-gtag-purchase';
 import { buildUserDataBundle, packUserData } from './user-data';
+
+// stapeServerBase + gtmFingerprint are now injected (from brand.config in prod);
+// the builder is pure, so the test pins the verified wire-format values locally.
+const STAPE_SERVER_BASE = 'https://ctsqyrwh.eus.stape.net';
+const GTM_FINGERPRINT = '45je';
 
 describe('gtagProducts', () => {
   it('builds id_~nm~pr~qt with literal ~ delimiters', () => {
@@ -53,6 +54,8 @@ describe('gtagProducts', () => {
 describe('buildPurchaseGtagUrl', () => {
   const base = {
     measurementId: 'G-Z06HHP6EFM',
+    stapeServerBase: STAPE_SERVER_BASE,
+    gtmFingerprint: GTM_FINGERPRINT,
     clientId: '1234567890.1700000000',
     sessionId: '1700000000',
     transactionId: '13894249349460',

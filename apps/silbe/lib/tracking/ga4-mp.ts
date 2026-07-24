@@ -2,9 +2,10 @@
 // no gtag). Used by the refunds/create webhook to post a `refund` event GA4
 // can join to the original purchase via transaction_id.
 //
-// Secrets: GA4_MEASUREMENT_ID and GA4_API_SECRET come from the environment and
-// are NEVER logged. The api_secret is a query parameter on the collect URL, so
-// callers must log status codes only — never the URL.
+// Secrets: GA4_MEASUREMENT_ID and GA4_API_SECRET come from the environment via
+// the brand.config layer (single source, shared with the orders/paid purchase)
+// and are NEVER logged. The api_secret is a query parameter on the collect URL,
+// so callers must log status codes only — never the URL.
 //
 // Endpoints:
 //   prod   https://www.google-analytics.com/mp/collect        → 204, no body
@@ -12,6 +13,8 @@
 //          { validationMessages: [...] }  (empty array = payload is valid)
 // Validate against the debug endpoint BEFORE pointing anything at prod — the
 // prod endpoint accepts and silently drops malformed payloads.
+
+import { brandConfig } from '@/lib/brand.config';
 
 const MP_PROD_ENDPOINT = 'https://www.google-analytics.com/mp/collect';
 const MP_DEBUG_ENDPOINT = 'https://www.google-analytics.com/debug/mp/collect';
@@ -39,10 +42,10 @@ export async function sendGa4MeasurementProtocol(args: {
   events: Ga4MpEvent[];
   debug?: boolean;
 }): Promise<Ga4MpResult> {
-  const measurementId = process.env.GA4_MEASUREMENT_ID;
-  const apiSecret = process.env.GA4_API_SECRET;
-  if (!measurementId) throw new Error('GA4_MEASUREMENT_ID is not set');
-  if (!apiSecret) throw new Error('GA4_API_SECRET is not set');
+  // Fail-fast via brand.config (throws '[brand.config] required env var … is not
+  // set' if unset) — same hard-fail semantics as before, single source now.
+  const measurementId = brandConfig.ga4.measurementId;
+  const apiSecret = brandConfig.ga4.apiSecret;
 
   const endpoint = args.debug ? MP_DEBUG_ENDPOINT : MP_PROD_ENDPOINT;
   const url =
