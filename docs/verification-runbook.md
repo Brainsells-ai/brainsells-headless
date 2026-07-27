@@ -382,7 +382,10 @@ fail-fast Getter feuern erst beim ersten echten Request** — noch durch keine e
 Lieferung gelaufen.
 
 - **Auslöser:** nächster echter Kauf / Refund (Standard-Lebenszyklus §1.4).
-- **Beobachtung:** Vercel Live-Log.
+- **Beobachtung:** Vercel Live-Log. **⚠️ Falle (Vercel Hobby):** der Plan retain't
+  **keine** Runtime-Logs — nur der Live-Stream zeigt sie. Den Dashboard-Log-Stream
+  (oder `vercel logs <url>`) also **vor** dem Auslösen öffnen; nach dem Fakt ist die
+  Zeile weg. Der Log-Beobachter muss im **Kaufmoment** live mitlesen.
 - **Erfolg:** `purchase sent` **und** `refund sent` erscheinen wie zuvor; **kein**
   `[brand.config] required env var … is not set`-Throw. Ein Throw ⇒ ein Env-Key fehlt
   oder ist in Vercel-Prod falsch benannt (die 4 Block-A-Keys: `STAPE_SERVER_BASE`,
@@ -392,33 +395,65 @@ Lieferung gelaufen.
 
 ### ☐ #2 — Idempotenz-Marker mit ECHTER Doppellieferung
 
-`silbe.ga4_purchase_sent` (Order-Metafield) ist bisher nur **🧪 Logik + Unit-Test**.
-Nie gegen eine echte Doppellieferung getestet.
+**Status: 🧪 Logik + Unit-Test verifiziert; echte Doppellieferung OFFEN** (Stand
+2026-07-24 — in v2-Durchgang bewusst nicht erzwungen, s. „Ausführbarkeit" unten).
 
-- **Auslöser (echte Doppellieferung provozieren):** den **exakten signierten
-  Roh-Body + `x-shopify-hmac-sha256`-Header** einer echten `orders/paid`-Lieferung
-  abgreifen und **zweimal** an den Prod-Endpoint POSTen. (Die Signatur lässt sich ohne
-  das Old-Secret nicht fälschen → ein echter Payload muss repliziert werden, nicht
-  synthetisiert.) Alternativ eine reale Shopify-Redelivery abwarten/erzwingen.
-- **Beobachtung:** Vercel Live-Log **beider** POSTs + GA4.
-- **Erfolg:** 1. POST → `purchase sent`; 2. POST →
+**Dedup-Mechanismus (aus dem Code, `apps/silbe/lib/shopify-purchase-marker.ts` +
+`orders-paid/route.ts`):**
+- Dedup-Schlüssel = **Order-Metafield `silbe.ga4_purchase_sent`** (namespace `silbe`,
+  key `ga4_purchase_sent`, type boolean) — liegt **auf der Order** (owner =
+  `gid://shopify/Order/<numerische Order-ID>`).
+- Ablauf: **read VOR dem Send** (`ga4PurchaseAlreadySent` → `value === 'true'`) →
+  gtag-Send → **mark NACH 2xx** (`markGa4PurchaseSent`).
+- ⇒ **Redelivery DERSELBEN Order** trifft denselben Owner → `true` → Skip. **Ein
+  zweiter Kauf** = neue Order-ID = neuer Owner = **kein** Dedup. Die Doppellieferung
+  muss also *dieselbe* `orders/paid`-Lieferung sein, nicht ein neuer Kauf.
+
+**Ausführbarkeit — warum echt-provozieren auf dieser Infra hakt (v2-Befund):**
+- **Kein Admin-Resend:** die Webhooks sind **per API unter der App „silbe admin
+  operations" registriert** (`register-webhooks.ts` → `webhookSubscriptionCreate`).
+  API-/App-registrierte Webhooks erscheinen **NICHT** unter Admin → Settings →
+  Notifications → Webhooks (die Seite listet nur admin-UI-erstellte Store-Webhooks),
+  und Shopify bietet dafür **kein Ein-Klick-Resend**.
+- **Payload-Replay** (exakten signierten Roh-Body + `x-shopify-hmac-sha256` einer
+  echten Lieferung 2× an den Prod-Endpoint POSTen) ist der einzige zuverlässige Weg —
+  aber den signierten Body **code-frei auf Vercel Hobby abzugreifen ist nicht möglich**
+  (wir loggen ihn bewusst nicht — PII), und die Signatur lässt sich ohne das
+  Old-Secret nicht fälschen.
+- **Shopify CLI `shopify webhook trigger` hilft nicht** (Sample-Payload, keine echte
+  Order-ID, HMAC matcht das Old-Secret nicht).
+
+**Erfolgs-Kriterium (falls doch ausgeführt):** 1. Zustellung → `purchase sent`;
+2. Zustellung derselben Lieferung →
   ```
   [orders-paid] <orderId>: purchase already sent — skipping (idempotent)
   ```
   und GA4 zeigt **genau ein** `purchase` für die `transaction_id` (Revenue nicht
   verdoppelt).
-- **Falle:** Read-check-then-write ist **nicht atomar** — zwei *echt gleichzeitige*
-  Lieferungen (beide im Read+Send+Write-Fenster, separate Function-Instanzen) könnten
-  beide senden. Shopifys Duplikate sind aber überwiegend **verzögerte** Redeliveries
-  (die der Marker fängt). CAPI-seitig fängt zusätzlich `event_id = Order-ID` das
-  Duplikat.
+
+**Falle:** Read-check-then-write ist **nicht atomar** — zwei *echt gleichzeitige*
+Lieferungen (beide im Read+Send+Write-Fenster, separate Function-Instanzen) könnten
+beide senden. Shopifys Duplikate sind aber überwiegend **verzögerte** Redeliveries
+(die der Marker fängt). CAPI-seitig fängt zusätzlich `event_id = Order-ID` das
+Duplikat.
+
+**Empfohlener nächster Schritt (eigener Block, nicht dieser Lauf):** ein
+env-gegateter Debug-Replay-Endpoint, der einen einmal-gecaptureten signierten Body
+kontrolliert 2× durchspielt — damit wird die echte Doppellieferung code-gestützt und
+reproduzierbar, ohne PII-Logging im Normalpfad.
 
 ### ☐ #3 — GA4-Reports zeigen 0,50 (nicht 500000)
 
 DebugView zeigt Geld in **Micros** (`500000`). Dass die **Reports** den korrekten
 `0,50 €` zeigen, ist noch nicht bestätigt.
 
-- **Auslöser:** ein bereits gelieferter echter purchase (z. B. der #1020-Nachfolger).
+- **Auslöser:** eine **debug-OFF**-Order (`GA4_PURCHASE_DEBUG` leer), z. B. eine echte
+  Kundenorder oder der #1020-Nachfolger.
+- **⚠️ NICHT der Debug-Verifikationskauf:** ein Kauf mit `GA4_PURCHASE_DEBUG=1`
+  (`_dbg=1`) landet in DebugView, aber **nicht** in den Standard-Reports (s. Block 1
+  Falle) → in der Monetization-Report ist er gar nicht zu finden. Der Report-Check
+  braucht daher eine **eigene, debug-off Order** und ist vom Debug-Kauf (Checks #1/#4
+  = Merlins Check 1/2) **entkoppelt**.
 - **Beobachtung:** GA4 → **Reports → Monetization → E-Commerce-Käufe** (oder Explore,
   gefiltert auf die `transaction_id`) **nach** dem Processing-Delay (~24–48 h).
 - **Erfolg:** Item-/Event-Umsatz für die Order = **0,50 EUR**, NICHT `500000`. Das
@@ -432,6 +467,17 @@ DebugView zeigt Geld in **Micros** (`500000`). Dass die **Reports** den korrekte
 Die Exclusion ruht auf der Stape-V3-Blocklist-Config und wurde **nie direkt
 beobachtet** (DebugView galt als „blind", Stape-Logs gesperrt). CAPI-**Empfang**
 beweist nur Decode/Param-Name — **nicht** die GA4-Exclusion.
+
+**Voraussetzungen (in Vercel-Prod, VOR dem Kauf — sonst ist der Trigger tot):**
+- `GA4_PURCHASE_DEBUG=1` — sonst kein `_dbg=1` → purchase nicht in DebugView →
+  Inspektionsweg-Punkt 1 unmöglich.
+- **Genau EIN** `*_TEST_EVENT_CODE` (z. B. `META_TEST_EVENT_CODE`) — sonst ist der
+  CAPI-Empfang (Punkt 2) nicht im Test-Events-Tab sichtbar.
+- Beim Checkout **Marketing-Consent = granted** akzeptieren — sonst `bs_ud = null`
+  (`ud=none`), der Hit trägt kein `bs_ud`, und die Absenz in GA4 beweist nichts.
+- **NACH dem Lauf beides wieder RAUS** (`GA4_PURCHASE_DEBUG` + `*_TEST_EVENT_CODE`):
+  ein vergessener Test-Code routet echte Conversions in den Test-Tab (Undercount),
+  ein vergessenes Debug-Flag hält echte Käufe aus den Reports.
 
 - **Inspektionsweg (der die „blind"-Annahme auflöst):** eine **Consent-Order**
   (`_marketing_consent=granted`) mit `GA4_PURCHASE_DEBUG=1` auslösen, sodass `bs_ud`
