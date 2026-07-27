@@ -559,9 +559,27 @@ oder bei einer Brand mit sporadischen Bestellungen. Ein deaktivierter Container 
 Trailing-Slash-/env-/URL-Hypothese, weil die 404-Log-Zeile weder URL noch Body zeigt und so
 wie ein URL-Bug aussieht.
 
-**MITIGATION (offen, für später):** Free-Tier reicht evtl. nicht — **Keepalive-Ping** (Cron
-gegen `/g/collect`) oder **bezahlter Tier** prüfen, damit der Container in stillen Phasen
-nicht abschaltet und echte Conversions verliert.
+**ZWEI Free-Tier-Disable-Mechanismen (nicht verwechseln):**
+1. **Inaktivität >2 Wochen** ohne Requests → deaktiviert, aber **reaktivierbar**. Dagegen der
+   **Keepalive-Workflow** (s. u.).
+2. **Monats-Limit erschöpft** (~10.000 Req/Monat) → Free-Tier ist *„not subject to the pause
+   logic"* und *„requests/events do not renew if the limit is reached"* → **effektiv PERMANENT
+   aus**, nur **Free→Paid-Upgrade** hilft. Der Keepalive löst das **NICHT**.
+
+**MITIGATION (1) — umgesetzt (Keepalive):** `.github/workflows/stape-keepalive.yml` pingt
+täglich `GET <base>/healthz` (200 `ok`, **kein** gtag-Hit → läuft nicht durch den GA4-Client,
+feuert kein Tag → verschmutzt **weder GA4 noch CAPI**). Container-Base als Repo-Secret
+`STAPE_KEEPALIVE_URL` (forkbar für N+1, `/healthz` hängt der Workflow an). **UNVERIFIZIERT**
+(Free-Tier hat **kein Request-Log**): ob `/healthz` für die Inaktivitäts-Uhr zählt → deshalb
+ist der Workflow **fail-laut** (≠200 → roter Run → GitHub-Notification) und ein **Kalender-
+Check** (~2 Wochen nach Reaktivierung, ohne echten Zwischen-Traffic) beweist die
+Zähl-Wirksamkeit empirisch. Falls `/healthz` NICHT zählt → **Plan B:** minimaler
+`/g/collect`-Hit **erst nach** Verifikation, dass die Container-Server-Tags event-scoped sind
+(sonst fächert der Keepalive echte Events aus).
+
+**LAUNCH-GATE für N+1 (Mechanismus 2):** **vor echtem Launch Free→Paid upgraden.** Der erste
+Traffic-Peak über das Free-Limit killt das Tracking **permanent** (kein Auto-Reset im
+Free-Tier) — der Keepalive schützt davor NICHT.
 
 ### 9.2 · Asymmetrische Debug-Instrumentierung — refund nie in DebugView
 
