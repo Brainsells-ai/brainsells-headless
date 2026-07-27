@@ -38,8 +38,17 @@ export const brandConfig = {
   stape: {
     // EU-hosted Stape server-container base (…stape.net). The gtag /g/collect
     // purchase POSTs here; the free tier serves EU egress only (US → 502).
+    //
+    // Normalized: trailing slash(es) are stripped so the caller's
+    // `base + '/g/collect'` can never produce a double slash. This is the ONE
+    // brand.config value concatenated into a URL PATH — measurementId /
+    // gtmFingerprint / namespace / editorialEvent are query params or opaque
+    // strings, where a trailing slash is harmless, so they stay verbatim.
+    // Block-A hardening: a trailing slash in the env value built
+    // `…net//g/collect` → 404 on the gtag hit (a Block-A regression class the
+    // Block-B verification run surfaced; the old hardcoded constant was clean).
     get serverBase(): string {
-      return requireEnv('STAPE_SERVER_BASE');
+      return requireEnv('STAPE_SERVER_BASE').replace(/\/+$/, '');
     },
     // gtag `gtm=` fingerprint from the verified green Stufe-0 hit — pins the wire
     // format Stape's server tags expect.
