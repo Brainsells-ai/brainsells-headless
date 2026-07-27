@@ -100,8 +100,8 @@ purchase↔refund automatisch. Ein Auseinanderlaufen bricht den Join still.
 ## 2 · Block 1 — purchase (orders/paid → Stape gtag `/g/collect` → GA4)
 
 **Status: ✅ real-delivery verifiziert** — Order **#1020** (2026-06-30),
-`transaction_id 13895477690708`. *(Nach Block A / brand.config-Refactor erneut zu
-bestätigen — siehe offene Verifikation #1.)*
+`transaction_id 13895477690708`; **nach Block A / brand.config-Refactor erneut
+real-delivery bestätigt 2026-07-27** (Order 13965988561236, s. Kap. 8 #1).
 
 Code: `apps/silbe/app/api/webhooks/orders-paid/route.ts` +
 `apps/silbe/lib/tracking/ga4-gtag-purchase.ts`.
@@ -375,11 +375,20 @@ Code: `apps/silbe/lib/tracking/ga4-gtag-purchase.ts` (`gtagProducts`).
 Vier Verifikationen sind noch **nicht** real-delivery-abgeschlossen. Jede ist als
 ausführbare Anleitung beschrieben — **Ausführung braucht echte Orders / Merlin**.
 
-### ☐ #1 — Block-A-Post-Merge-Watch (brand.config lazy getters)
+### ✅ #1 — Block-A-Post-Merge-Watch (brand.config lazy getters)
 
-Der `brand.config.ts`-Refactor (Block A, PR #64) ist gemergt, aber die **lazy
-fail-fast Getter feuern erst beim ersten echten Request** — noch durch keine echte
-Lieferung gelaufen.
+**Status: ✅ real-delivery verifiziert 2026-07-27 (Order 13965988561236).**
+`[orders-paid] purchase sent … 0.50 EUR, ud=attached` (**2xx**) **und** `[refunds-create]
+refund sent … 200` liefen — beide **ohne** `[brand.config] required env var …`-Throw ⇒
+die lazy Getter feuern mit echten env.
+- **Kauf-Seite:** ✅ real-delivery verifiziert.
+- **Refund-Seite:** 🔵 **gesendet (2xx)** + Block-A-Getter bestätigt, aber das
+  GA4-**Recording** ist damit NICHT bewiesen (refund hat keine DebugView-Instrumentierung;
+  prod `/mp/collect` dropt malformed still) → Recording-Beweis nur im Monetization-Report
+  (+24–48 h, s. #3-Mechanik). Nicht als „verifiziert" abhaken.
+
+Historischer Watch: der Refactor war gemergt, aber die lazy fail-fast Getter feuern erst
+beim ersten echten Request — genau das ist mit obiger Lieferung eingelöst.
 
 - **Auslöser:** nächster echter Kauf / Refund (Standard-Lebenszyklus §1.4).
 - **Beobachtung:** Vercel Live-Log. **⚠️ Falle (Vercel Hobby):** der Plan retain't
@@ -462,11 +471,28 @@ DebugView zeigt Geld in **Micros** (`500000`). Dass die **Reports** den korrekte
 - **Falle:** Nicht in Realtime/DebugView prüfen (dort das Micros-Artefakt); nur der
   verarbeitete Report teilt durch 1e6.
 
-### ☐ #4 — GA4-Firewall: `bs_ud` kommt NICHT in GA4 an
+### ✅ #4 — GA4-Firewall: `bs_ud` kommt NICHT in GA4 an
 
-Die Exclusion ruht auf der Stape-V3-Blocklist-Config und wurde **nie direkt
-beobachtet** (DebugView galt als „blind", Stape-Logs gesperrt). CAPI-**Empfang**
-beweist nur Decode/Param-Name — **nicht** die GA4-Exclusion.
+**Status: ✅ real-delivery verifiziert 2026-07-27 (Order 13965988561236).**
+**DebugView ist NICHT blind** — die gepaarte Beobachtung (**Draht-Log + DebugView-Params**)
+beweist die Firewall, am 2026-07-27 empirisch bestätigt. Die alte „DebugView blind"-Annahme
+ist damit **endgültig invalidiert**:
+- **Draht:** der prod `[orders-paid] … [debug] <safeUrl>`-Log (bei `GA4_PURCHASE_DEBUG=1`)
+  zeigte `ep.bs_ud=<redacted>` **und** `ep.bs_test_meta=TEST64632` auf dem ausgehenden Hit.
+- **GA4:** die DebugView-Param-Liste des purchase-Events (Order 13965988561236, value 0.5)
+  enthielt **weder `bs_ud` noch `bs_test_meta`** (nur currency, debug_mode, event_id,
+  transaction_id, value, ga_session_*, engagement_time_msec, batch_page_id,
+  non_personalized_ads).
+- ⇒ bs_ud/bs_test_* gingen an Stape rein, kamen bei GA4 nicht an = **Firewall bewiesen**.
+
+**Separate, noch offene Leg — CAPI-Enrichment:** dass Stape `bs_ud` korrekt DEKODIERT und
+em/ip/ua an die CAPI-Tags weiterreicht, ist eine *andere* Aussage als die GA4-Exclusion
+und wird über den Meta/TikTok/Pinterest-Test-Events-Tab bestätigt (⚠️ Meta-Check am
+2026-07-27 noch ausstehend). Der Firewall-Beweis oben hängt **nicht** daran — die
+Draht-Präsenz ist **direkt geloggt**, nicht aus dem CAPI-Empfang erschlossen.
+
+Historisch: die Exclusion ruhte auf der Stape-V3-Blocklist-Config und galt als „nie direkt
+beobachtet" (DebugView „blind", Stape-Logs gesperrt) — mit obiger gepaarter Beobachtung erledigt.
 
 **Voraussetzungen (in Vercel-Prod, VOR dem Kauf — sonst ist der Trigger tot):**
 - `GA4_PURCHASE_DEBUG=1` — sonst kein `_dbg=1` → purchase nicht in DebugView →
@@ -482,14 +508,19 @@ beweist nur Decode/Param-Name — **nicht** die GA4-Exclusion.
 - **Inspektionsweg (der die „blind"-Annahme auflöst):** eine **Consent-Order**
   (`_marketing_consent=granted`) mit `GA4_PURCHASE_DEBUG=1` auslösen, sodass `bs_ud`
   **tatsächlich auf dem Hit ist**. Dann die **gepaarte** Beobachtung:
+  0. **Draht (Vercel-Log):** der `[orders-paid] … [debug] <safeUrl>`-Log zeigt
+     `ep.bs_ud=<redacted>` (+ ggf. `ep.bs_test_*`) — **direkter** Beweis, dass `bs_ud` an
+     Stape RAUSGING (der Wert ist redigiert, der Param selbst ist sichtbar). Das ist der
+     saubere „auf-dem-Draht"-Beleg — nicht aus dem CAPI-Empfang erschließen müssen.
   1. **GA4 DebugView** → das `purchase`-Event → Parameter-Liste inspizieren:
      **kein** `bs_ud` (und kein `bs_test_*`) vorhanden.
-  2. **Gleicher Hit**, Plattform-Test-Events: Meta/TikTok/Pinterest **haben** em/ip/ua
-     empfangen → beweist, dass `bs_ud` auf dem Draht war und **nur der GA4-Tag** es
-     gestrippt hat.
-- **Erfolg:** `bs_ud` **präsent im Stape-Input** (bewiesen durch CAPI-Empfang) **UND
-  absent in den GA4-Event-Parametern** (DebugView). Nur beides zusammen beweist die
-  Firewall.
+  2. **Gleicher Hit**, Plattform-Test-Events (**separate Leg — CAPI-Decode, nicht Teil des
+     Firewall-Beweises**): Meta/TikTok/Pinterest **haben** em/ip/ua empfangen → bestätigt,
+     dass Stape `bs_ud` dekodiert und weiterreicht.
+- **Erfolg:** `bs_ud` **präsent im Stape-Input** — am direktesten via dem prod
+  `[debug] <safeUrl>`-Draht-Log (Punkt 0); CAPI-Empfang ist ein zweiter, indirekter Beleg
+  — **UND absent in den GA4-Event-Parametern** (DebugView, Punkt 1). Beides zusammen
+  beweist die Firewall.
 - **Falle:** `bs_ud`-Absenz allein in DebugView beweist **nichts**, wenn der Hit gar
   kein `bs_ud` trug (kein Consent / Debug aus). Die gepaarte Beobachtung auf **einer
   einzigen consented Debug-Order** ist der Punkt.
