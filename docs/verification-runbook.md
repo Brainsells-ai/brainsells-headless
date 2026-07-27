@@ -195,6 +195,10 @@ Stape. Der Handler macht einen Admin-Lookup (Order-Total + GA-Attribute), gatet 
   ```
 - **Vercel Hobby retain't keine Logs** → die Skip-Zeile ist nach dem Fakt unsichtbar;
   live mitschauen.
+- **refund erscheint NIE in DebugView** (kein `debug_mode`, by design) → der
+  Recording-Beweis geht **nur** über die Monetization-Report (+24–48 h, Refund = negativer
+  Umsatz). Nicht in DebugView darauf warten. Details Kap. 9.2. Der Vercel-`200` beweist nur
+  den Send, nicht das GA4-Recording.
 
 ---
 
@@ -277,13 +281,16 @@ dekodiert und mappt auf `user_data.email_address`/`ip_override`/`user_agent`
   dann Pinterest wiederholen.
 
 **Beobachtungspunkt**
-- **Meta Events Manager → Test-Events-Tab** (bzw. TikTok Events / Pinterest
-  „Test events"). Das Event erscheint dort statt im Prod-Reporting.
+- **⚠️ Der Plattform-Test-Events-Tab zeigt den SERVER-Kanal NICHT** (nur Website/Offline;
+  bestätigt 2026-07-27). Ein server-seitig via Stape gesendetes CAPI-Event taucht dort
+  **nicht** auf → der Test-Tab ist für Server-CAPI **kein** Beobachtungspunkt (s. Kap. 9.3).
+- **Stattdessen:** (1) **Server-Log** `ud=attached` + Draht-`ep.bs_ud=<redacted>`;
+  (2) **EMQ / Match-Qualität** in der Prod-Übersicht der Plattform über die nächsten Tage.
 
 **Erfolgs-Kriterium (konkret)**
-- Im Test-Events-Tab erscheint ein `Purchase`-Event mit befülltem `user_data`:
-  **Email (gehasht)**, **IP**, **User-Agent** — nicht leer, nicht redacted.
-- Vercel-Log der Order zeigt `ud=attached` (nicht `ud=none`).
+- Vercel-Log der Order zeigt `ud=attached` (nicht `ud=none`) → consented user_data war auf
+  dem Hit. **2026-07-27 bestätigt** (Order 13965988561236, `ud=attached`).
+- EMQ/Match-Qualität steigt in der Prod-Übersicht (Meta/TikTok/Pinterest) über die Tage.
 - Warn-Log solange ein Test-Code aktiv ist:
   ```
   [orders-paid] TEST-EVENT MODE active for: meta — these events route to the platform Test-Events tab, not prod. Unset in prod.
@@ -485,11 +492,13 @@ ist damit **endgültig invalidiert**:
   non_personalized_ads).
 - ⇒ bs_ud/bs_test_* gingen an Stape rein, kamen bei GA4 nicht an = **Firewall bewiesen**.
 
-**Separate, noch offene Leg — CAPI-Enrichment:** dass Stape `bs_ud` korrekt DEKODIERT und
-em/ip/ua an die CAPI-Tags weiterreicht, ist eine *andere* Aussage als die GA4-Exclusion
-und wird über den Meta/TikTok/Pinterest-Test-Events-Tab bestätigt (⚠️ Meta-Check am
-2026-07-27 noch ausstehend). Der Firewall-Beweis oben hängt **nicht** daran — die
-Draht-Präsenz ist **direkt geloggt**, nicht aus dem CAPI-Empfang erschlossen.
+**Separate Leg — CAPI-Enrichment (`ud=attached`):** dass Stape `bs_ud` dekodiert und
+em/ip/ua an die CAPI-Tags weiterreicht, ist eine *andere* Aussage als die GA4-Exclusion.
+Beleg: **`ud=attached`** im Server-Log (consented user_data war auf dem Hit). Der
+**Plattform-Test-Tab zeigt den Server-Kanal NICHT** (s. Kap. 9.3), daher läuft die volle
+Match-Qualitäts-Bestätigung über die **EMQ-Prod-Übersicht** über die nächsten Tage — nicht
+über den Test-Tab. Der Firewall-Beweis oben hängt **nicht** daran: die Draht-Präsenz ist
+**direkt geloggt**, nicht aus dem CAPI-Empfang erschlossen.
 
 Historisch: die Exclusion ruhte auf der Stape-V3-Blocklist-Config und galt als „nie direkt
 beobachtet" (DebugView „blind", Stape-Logs gesperrt) — mit obiger gepaarter Beobachtung erledigt.
@@ -527,7 +536,60 @@ beobachtet" (DebugView „blind", Stape-Logs gesperrt) — mit obiger gepaarter 
 
 ---
 
-## 9 · Für Shop N+1 (Blueprint-Fork)
+## 9 · Troubleshooting — bei 404 / fehlender Delivery ZUERST hier
+
+Anti-Patterns, die der Verifikations-Lauf (2026-07-27) real aufgedeckt hat. Die
+Reihenfolge ist die **Prüf-Reihenfolge**.
+
+### 9.1 · Stape Free-Tier-Container-Auto-Disable → 404 (HÖCHSTE PRIO bei jedem Stape-404)
+
+Stape **Free-Tier**-Container werden bei **Inaktivität automatisch deaktiviert** — konkret,
+wenn sie über **zwei Wochen KEINE Requests** erhalten. **Kein festes Ablaufdatum:** ein
+Container mit laufendem Traffic bleibt unbegrenzt aktiv. Folge der Deaktivierung: **404 auf
+allen gtag-Pfaden**, Symptom **identisch** zu einer falschen URL / falschem env-Wert.
+
+**DIAGNOSE-REIHENFOLGE:** bei **404 vom Stape-Endpoint IMMER ZUERST den Container-Status im
+Stape-Dashboard prüfen**, BEVOR env/Code debuggt wird.
+
+**RISIKO für Live-Brands:** greift genau in **Traffic-Lücken** — zwischen Setup und Launch,
+oder bei einer Brand mit sporadischen Bestellungen. Ein deaktivierter Container verliert
+**echte Conversions** still.
+
+**Real passiert 2026-07-27** (auch schon 2026-06-23) — kostete **3 Debug-Runden** auf einer
+Trailing-Slash-/env-/URL-Hypothese, weil die 404-Log-Zeile weder URL noch Body zeigt und so
+wie ein URL-Bug aussieht.
+
+**MITIGATION (offen, für später):** Free-Tier reicht evtl. nicht — **Keepalive-Ping** (Cron
+gegen `/g/collect`) oder **bezahlter Tier** prüfen, damit der Container in stillen Phasen
+nicht abschaltet und echte Conversions verliert.
+
+### 9.2 · Asymmetrische Debug-Instrumentierung — refund nie in DebugView
+
+**purchase** ist DebugView-schaltbar (`GA4_PURCHASE_DEBUG=1` → `_dbg=1` auf dem gtag-Hit).
+**refund NICHT** — der refund-MP-Send geht **immer** ohne `debug_mode` an prod
+`/mp/collect` und landet in **Standard-Reports, nie DebugView** (by design; der
+`ga4-mp.ts`-`debug`-Arg schaltet nur den Validierungs-Endpoint `/debug/mp/collect`, der
+**nichts aufzeichnet**). **Wer refund in DebugView sucht, wartet ewig.**
+
+Konsequenz: der refund-**Recording**-Beweis geht **nur über die Monetization-Report**
+(+24–48 h, Refund = negativer Umsatz). Ein Vercel-`200` beweist nur den Send, nicht das
+Recording (prod `/mp/collect` dropt malformed still). *Optionaler Zukunfts-Block:*
+`GA4_REFUND_DEBUG` → `debug_mode: 1` in die refund-**params** (nicht der Endpoint-Switch),
+macht refund DebugView-sichtbar bei gleichbleibendem Recording.
+
+### 9.3 · Server-CAPI-Empfang ist NICHT im Plattform-Test-Tab sichtbar
+
+Der Meta-Test-Events-Tab (und analog TikTok/Pinterest) listet **nur die Website- und
+Offline-Kanäle** — **nicht** den **Server-Kanal** (bestätigt 2026-07-27). Ein server-seitig
+via Stape gesendetes CAPI-Event taucht dort also **nicht** auf. Die em/ip/ua-Bestätigung
+läuft daher über:
+1. **Server-Log:** `ud=attached` in der `[orders-paid] purchase sent …`-Zeile + die
+   Draht-Präsenz `ep.bs_ud=<redacted>` im `[debug]`-Log.
+2. **EMQ / Match-Qualität** in der Prod-Übersicht der Plattform über die nächsten Tage.
+
+---
+
+## 10 · Für Shop N+1 (Blueprint-Fork)
 
 Beim Forken auf einen neuen Shop: der **generische Teil ist die Methode**, der
 **SILBE-spezifische Teil sind Werte**, die neu parametrisiert werden müssen.
