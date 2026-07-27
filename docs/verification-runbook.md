@@ -100,8 +100,8 @@ purchase↔refund automatisch. Ein Auseinanderlaufen bricht den Join still.
 ## 2 · Block 1 — purchase (orders/paid → Stape gtag `/g/collect` → GA4)
 
 **Status: ✅ real-delivery verifiziert** — Order **#1020** (2026-06-30),
-`transaction_id 13895477690708`. *(Nach Block A / brand.config-Refactor erneut zu
-bestätigen — siehe offene Verifikation #1.)*
+`transaction_id 13895477690708`; **nach Block A / brand.config-Refactor erneut
+real-delivery bestätigt 2026-07-27** (Order 13965988561236, s. Kap. 8 #1).
 
 Code: `apps/silbe/app/api/webhooks/orders-paid/route.ts` +
 `apps/silbe/lib/tracking/ga4-gtag-purchase.ts`.
@@ -195,6 +195,10 @@ Stape. Der Handler macht einen Admin-Lookup (Order-Total + GA-Attribute), gatet 
   ```
 - **Vercel Hobby retain't keine Logs** → die Skip-Zeile ist nach dem Fakt unsichtbar;
   live mitschauen.
+- **refund erscheint NIE in DebugView** (kein `debug_mode`, by design) → der
+  Recording-Beweis geht **nur** über die Monetization-Report (+24–48 h, Refund = negativer
+  Umsatz). Nicht in DebugView darauf warten. Details Kap. 9.2. Der Vercel-`200` beweist nur
+  den Send, nicht das GA4-Recording.
 
 ---
 
@@ -277,13 +281,16 @@ dekodiert und mappt auf `user_data.email_address`/`ip_override`/`user_agent`
   dann Pinterest wiederholen.
 
 **Beobachtungspunkt**
-- **Meta Events Manager → Test-Events-Tab** (bzw. TikTok Events / Pinterest
-  „Test events"). Das Event erscheint dort statt im Prod-Reporting.
+- **⚠️ Der Plattform-Test-Events-Tab zeigt den SERVER-Kanal NICHT** (nur Website/Offline;
+  bestätigt 2026-07-27). Ein server-seitig via Stape gesendetes CAPI-Event taucht dort
+  **nicht** auf → der Test-Tab ist für Server-CAPI **kein** Beobachtungspunkt (s. Kap. 9.3).
+- **Stattdessen:** (1) **Server-Log** `ud=attached` + Draht-`ep.bs_ud=<redacted>`;
+  (2) **EMQ / Match-Qualität** in der Prod-Übersicht der Plattform über die nächsten Tage.
 
 **Erfolgs-Kriterium (konkret)**
-- Im Test-Events-Tab erscheint ein `Purchase`-Event mit befülltem `user_data`:
-  **Email (gehasht)**, **IP**, **User-Agent** — nicht leer, nicht redacted.
-- Vercel-Log der Order zeigt `ud=attached` (nicht `ud=none`).
+- Vercel-Log der Order zeigt `ud=attached` (nicht `ud=none`) → consented user_data war auf
+  dem Hit. **2026-07-27 bestätigt** (Order 13965988561236, `ud=attached`).
+- EMQ/Match-Qualität steigt in der Prod-Übersicht (Meta/TikTok/Pinterest) über die Tage.
 - Warn-Log solange ein Test-Code aktiv ist:
   ```
   [orders-paid] TEST-EVENT MODE active for: meta — these events route to the platform Test-Events tab, not prod. Unset in prod.
@@ -375,14 +382,26 @@ Code: `apps/silbe/lib/tracking/ga4-gtag-purchase.ts` (`gtagProducts`).
 Vier Verifikationen sind noch **nicht** real-delivery-abgeschlossen. Jede ist als
 ausführbare Anleitung beschrieben — **Ausführung braucht echte Orders / Merlin**.
 
-### ☐ #1 — Block-A-Post-Merge-Watch (brand.config lazy getters)
+### ✅ #1 — Block-A-Post-Merge-Watch (brand.config lazy getters)
 
-Der `brand.config.ts`-Refactor (Block A, PR #64) ist gemergt, aber die **lazy
-fail-fast Getter feuern erst beim ersten echten Request** — noch durch keine echte
-Lieferung gelaufen.
+**Status: ✅ real-delivery verifiziert 2026-07-27 (Order 13965988561236).**
+`[orders-paid] purchase sent … 0.50 EUR, ud=attached` (**2xx**) **und** `[refunds-create]
+refund sent … 200` liefen — beide **ohne** `[brand.config] required env var …`-Throw ⇒
+die lazy Getter feuern mit echten env.
+- **Kauf-Seite:** ✅ real-delivery verifiziert.
+- **Refund-Seite:** 🔵 **gesendet (2xx)** + Block-A-Getter bestätigt, aber das
+  GA4-**Recording** ist damit NICHT bewiesen (refund hat keine DebugView-Instrumentierung;
+  prod `/mp/collect` dropt malformed still) → Recording-Beweis nur im Monetization-Report
+  (+24–48 h, s. #3-Mechanik). Nicht als „verifiziert" abhaken.
+
+Historischer Watch: der Refactor war gemergt, aber die lazy fail-fast Getter feuern erst
+beim ersten echten Request — genau das ist mit obiger Lieferung eingelöst.
 
 - **Auslöser:** nächster echter Kauf / Refund (Standard-Lebenszyklus §1.4).
-- **Beobachtung:** Vercel Live-Log.
+- **Beobachtung:** Vercel Live-Log. **⚠️ Falle (Vercel Hobby):** der Plan retain't
+  **keine** Runtime-Logs — nur der Live-Stream zeigt sie. Den Dashboard-Log-Stream
+  (oder `vercel logs <url>`) also **vor** dem Auslösen öffnen; nach dem Fakt ist die
+  Zeile weg. Der Log-Beobachter muss im **Kaufmoment** live mitlesen.
 - **Erfolg:** `purchase sent` **und** `refund sent` erscheinen wie zuvor; **kein**
   `[brand.config] required env var … is not set`-Throw. Ein Throw ⇒ ein Env-Key fehlt
   oder ist in Vercel-Prod falsch benannt (die 4 Block-A-Keys: `STAPE_SERVER_BASE`,
@@ -392,33 +411,65 @@ Lieferung gelaufen.
 
 ### ☐ #2 — Idempotenz-Marker mit ECHTER Doppellieferung
 
-`silbe.ga4_purchase_sent` (Order-Metafield) ist bisher nur **🧪 Logik + Unit-Test**.
-Nie gegen eine echte Doppellieferung getestet.
+**Status: 🧪 Logik + Unit-Test verifiziert; echte Doppellieferung OFFEN** (Stand
+2026-07-24 — in v2-Durchgang bewusst nicht erzwungen, s. „Ausführbarkeit" unten).
 
-- **Auslöser (echte Doppellieferung provozieren):** den **exakten signierten
-  Roh-Body + `x-shopify-hmac-sha256`-Header** einer echten `orders/paid`-Lieferung
-  abgreifen und **zweimal** an den Prod-Endpoint POSTen. (Die Signatur lässt sich ohne
-  das Old-Secret nicht fälschen → ein echter Payload muss repliziert werden, nicht
-  synthetisiert.) Alternativ eine reale Shopify-Redelivery abwarten/erzwingen.
-- **Beobachtung:** Vercel Live-Log **beider** POSTs + GA4.
-- **Erfolg:** 1. POST → `purchase sent`; 2. POST →
+**Dedup-Mechanismus (aus dem Code, `apps/silbe/lib/shopify-purchase-marker.ts` +
+`orders-paid/route.ts`):**
+- Dedup-Schlüssel = **Order-Metafield `silbe.ga4_purchase_sent`** (namespace `silbe`,
+  key `ga4_purchase_sent`, type boolean) — liegt **auf der Order** (owner =
+  `gid://shopify/Order/<numerische Order-ID>`).
+- Ablauf: **read VOR dem Send** (`ga4PurchaseAlreadySent` → `value === 'true'`) →
+  gtag-Send → **mark NACH 2xx** (`markGa4PurchaseSent`).
+- ⇒ **Redelivery DERSELBEN Order** trifft denselben Owner → `true` → Skip. **Ein
+  zweiter Kauf** = neue Order-ID = neuer Owner = **kein** Dedup. Die Doppellieferung
+  muss also *dieselbe* `orders/paid`-Lieferung sein, nicht ein neuer Kauf.
+
+**Ausführbarkeit — warum echt-provozieren auf dieser Infra hakt (v2-Befund):**
+- **Kein Admin-Resend:** die Webhooks sind **per API unter der App „silbe admin
+  operations" registriert** (`register-webhooks.ts` → `webhookSubscriptionCreate`).
+  API-/App-registrierte Webhooks erscheinen **NICHT** unter Admin → Settings →
+  Notifications → Webhooks (die Seite listet nur admin-UI-erstellte Store-Webhooks),
+  und Shopify bietet dafür **kein Ein-Klick-Resend**.
+- **Payload-Replay** (exakten signierten Roh-Body + `x-shopify-hmac-sha256` einer
+  echten Lieferung 2× an den Prod-Endpoint POSTen) ist der einzige zuverlässige Weg —
+  aber den signierten Body **code-frei auf Vercel Hobby abzugreifen ist nicht möglich**
+  (wir loggen ihn bewusst nicht — PII), und die Signatur lässt sich ohne das
+  Old-Secret nicht fälschen.
+- **Shopify CLI `shopify webhook trigger` hilft nicht** (Sample-Payload, keine echte
+  Order-ID, HMAC matcht das Old-Secret nicht).
+
+**Erfolgs-Kriterium (falls doch ausgeführt):** 1. Zustellung → `purchase sent`;
+2. Zustellung derselben Lieferung →
   ```
   [orders-paid] <orderId>: purchase already sent — skipping (idempotent)
   ```
   und GA4 zeigt **genau ein** `purchase` für die `transaction_id` (Revenue nicht
   verdoppelt).
-- **Falle:** Read-check-then-write ist **nicht atomar** — zwei *echt gleichzeitige*
-  Lieferungen (beide im Read+Send+Write-Fenster, separate Function-Instanzen) könnten
-  beide senden. Shopifys Duplikate sind aber überwiegend **verzögerte** Redeliveries
-  (die der Marker fängt). CAPI-seitig fängt zusätzlich `event_id = Order-ID` das
-  Duplikat.
+
+**Falle:** Read-check-then-write ist **nicht atomar** — zwei *echt gleichzeitige*
+Lieferungen (beide im Read+Send+Write-Fenster, separate Function-Instanzen) könnten
+beide senden. Shopifys Duplikate sind aber überwiegend **verzögerte** Redeliveries
+(die der Marker fängt). CAPI-seitig fängt zusätzlich `event_id = Order-ID` das
+Duplikat.
+
+**Empfohlener nächster Schritt (eigener Block, nicht dieser Lauf):** ein
+env-gegateter Debug-Replay-Endpoint, der einen einmal-gecaptureten signierten Body
+kontrolliert 2× durchspielt — damit wird die echte Doppellieferung code-gestützt und
+reproduzierbar, ohne PII-Logging im Normalpfad.
 
 ### ☐ #3 — GA4-Reports zeigen 0,50 (nicht 500000)
 
 DebugView zeigt Geld in **Micros** (`500000`). Dass die **Reports** den korrekten
 `0,50 €` zeigen, ist noch nicht bestätigt.
 
-- **Auslöser:** ein bereits gelieferter echter purchase (z. B. der #1020-Nachfolger).
+- **Auslöser:** eine **debug-OFF**-Order (`GA4_PURCHASE_DEBUG` leer), z. B. eine echte
+  Kundenorder oder der #1020-Nachfolger.
+- **⚠️ NICHT der Debug-Verifikationskauf:** ein Kauf mit `GA4_PURCHASE_DEBUG=1`
+  (`_dbg=1`) landet in DebugView, aber **nicht** in den Standard-Reports (s. Block 1
+  Falle) → in der Monetization-Report ist er gar nicht zu finden. Der Report-Check
+  braucht daher eine **eigene, debug-off Order** und ist vom Debug-Kauf (Checks #1/#4
+  = Merlins Check 1/2) **entkoppelt**.
 - **Beobachtung:** GA4 → **Reports → Monetization → E-Commerce-Käufe** (oder Explore,
   gefiltert auf die `transaction_id`) **nach** dem Processing-Delay (~24–48 h).
 - **Erfolg:** Item-/Event-Umsatz für die Order = **0,50 EUR**, NICHT `500000`. Das
@@ -427,30 +478,118 @@ DebugView zeigt Geld in **Micros** (`500000`). Dass die **Reports** den korrekte
 - **Falle:** Nicht in Realtime/DebugView prüfen (dort das Micros-Artefakt); nur der
   verarbeitete Report teilt durch 1e6.
 
-### ☐ #4 — GA4-Firewall: `bs_ud` kommt NICHT in GA4 an
+### ✅ #4 — GA4-Firewall: `bs_ud` kommt NICHT in GA4 an
 
-Die Exclusion ruht auf der Stape-V3-Blocklist-Config und wurde **nie direkt
-beobachtet** (DebugView galt als „blind", Stape-Logs gesperrt). CAPI-**Empfang**
-beweist nur Decode/Param-Name — **nicht** die GA4-Exclusion.
+**Status: ✅ real-delivery verifiziert 2026-07-27 (Order 13965988561236).**
+**DebugView ist NICHT blind** — die gepaarte Beobachtung (**Draht-Log + DebugView-Params**)
+beweist die Firewall, am 2026-07-27 empirisch bestätigt. Die alte „DebugView blind"-Annahme
+ist damit **endgültig invalidiert**:
+- **Draht:** der prod `[orders-paid] … [debug] <safeUrl>`-Log (bei `GA4_PURCHASE_DEBUG=1`)
+  zeigte `ep.bs_ud=<redacted>` **und** `ep.bs_test_meta=TEST64632` auf dem ausgehenden Hit.
+- **GA4:** die DebugView-Param-Liste des purchase-Events (Order 13965988561236, value 0.5)
+  enthielt **weder `bs_ud` noch `bs_test_meta`** (nur currency, debug_mode, event_id,
+  transaction_id, value, ga_session_*, engagement_time_msec, batch_page_id,
+  non_personalized_ads).
+- ⇒ bs_ud/bs_test_* gingen an Stape rein, kamen bei GA4 nicht an = **Firewall bewiesen**.
+
+**Separate Leg — CAPI-Enrichment (`ud=attached`):** dass Stape `bs_ud` dekodiert und
+em/ip/ua an die CAPI-Tags weiterreicht, ist eine *andere* Aussage als die GA4-Exclusion.
+Beleg: **`ud=attached`** im Server-Log (consented user_data war auf dem Hit). Der
+**Plattform-Test-Tab zeigt den Server-Kanal NICHT** (s. Kap. 9.3), daher läuft die volle
+Match-Qualitäts-Bestätigung über die **EMQ-Prod-Übersicht** über die nächsten Tage — nicht
+über den Test-Tab. Der Firewall-Beweis oben hängt **nicht** daran: die Draht-Präsenz ist
+**direkt geloggt**, nicht aus dem CAPI-Empfang erschlossen.
+
+Historisch: die Exclusion ruhte auf der Stape-V3-Blocklist-Config und galt als „nie direkt
+beobachtet" (DebugView „blind", Stape-Logs gesperrt) — mit obiger gepaarter Beobachtung erledigt.
+
+**Voraussetzungen (in Vercel-Prod, VOR dem Kauf — sonst ist der Trigger tot):**
+- `GA4_PURCHASE_DEBUG=1` — sonst kein `_dbg=1` → purchase nicht in DebugView →
+  Inspektionsweg-Punkt 1 unmöglich.
+- **Genau EIN** `*_TEST_EVENT_CODE` (z. B. `META_TEST_EVENT_CODE`) — sonst ist der
+  CAPI-Empfang (Punkt 2) nicht im Test-Events-Tab sichtbar.
+- Beim Checkout **Marketing-Consent = granted** akzeptieren — sonst `bs_ud = null`
+  (`ud=none`), der Hit trägt kein `bs_ud`, und die Absenz in GA4 beweist nichts.
+- **NACH dem Lauf beides wieder RAUS** (`GA4_PURCHASE_DEBUG` + `*_TEST_EVENT_CODE`):
+  ein vergessener Test-Code routet echte Conversions in den Test-Tab (Undercount),
+  ein vergessenes Debug-Flag hält echte Käufe aus den Reports.
 
 - **Inspektionsweg (der die „blind"-Annahme auflöst):** eine **Consent-Order**
   (`_marketing_consent=granted`) mit `GA4_PURCHASE_DEBUG=1` auslösen, sodass `bs_ud`
   **tatsächlich auf dem Hit ist**. Dann die **gepaarte** Beobachtung:
+  0. **Draht (Vercel-Log):** der `[orders-paid] … [debug] <safeUrl>`-Log zeigt
+     `ep.bs_ud=<redacted>` (+ ggf. `ep.bs_test_*`) — **direkter** Beweis, dass `bs_ud` an
+     Stape RAUSGING (der Wert ist redigiert, der Param selbst ist sichtbar). Das ist der
+     saubere „auf-dem-Draht"-Beleg — nicht aus dem CAPI-Empfang erschließen müssen.
   1. **GA4 DebugView** → das `purchase`-Event → Parameter-Liste inspizieren:
      **kein** `bs_ud` (und kein `bs_test_*`) vorhanden.
-  2. **Gleicher Hit**, Plattform-Test-Events: Meta/TikTok/Pinterest **haben** em/ip/ua
-     empfangen → beweist, dass `bs_ud` auf dem Draht war und **nur der GA4-Tag** es
-     gestrippt hat.
-- **Erfolg:** `bs_ud` **präsent im Stape-Input** (bewiesen durch CAPI-Empfang) **UND
-  absent in den GA4-Event-Parametern** (DebugView). Nur beides zusammen beweist die
-  Firewall.
+  2. **Gleicher Hit**, Plattform-Test-Events (**separate Leg — CAPI-Decode, nicht Teil des
+     Firewall-Beweises**): Meta/TikTok/Pinterest **haben** em/ip/ua empfangen → bestätigt,
+     dass Stape `bs_ud` dekodiert und weiterreicht.
+- **Erfolg:** `bs_ud` **präsent im Stape-Input** — am direktesten via dem prod
+  `[debug] <safeUrl>`-Draht-Log (Punkt 0); CAPI-Empfang ist ein zweiter, indirekter Beleg
+  — **UND absent in den GA4-Event-Parametern** (DebugView, Punkt 1). Beides zusammen
+  beweist die Firewall.
 - **Falle:** `bs_ud`-Absenz allein in DebugView beweist **nichts**, wenn der Hit gar
   kein `bs_ud` trug (kein Consent / Debug aus). Die gepaarte Beobachtung auf **einer
   einzigen consented Debug-Order** ist der Punkt.
 
 ---
 
-## 9 · Für Shop N+1 (Blueprint-Fork)
+## 9 · Troubleshooting — bei 404 / fehlender Delivery ZUERST hier
+
+Anti-Patterns, die der Verifikations-Lauf (2026-07-27) real aufgedeckt hat. Die
+Reihenfolge ist die **Prüf-Reihenfolge**.
+
+### 9.1 · Stape Free-Tier-Container-Auto-Disable → 404 (HÖCHSTE PRIO bei jedem Stape-404)
+
+Stape **Free-Tier**-Container werden bei **Inaktivität automatisch deaktiviert** — konkret,
+wenn sie über **zwei Wochen KEINE Requests** erhalten. **Kein festes Ablaufdatum:** ein
+Container mit laufendem Traffic bleibt unbegrenzt aktiv. Folge der Deaktivierung: **404 auf
+allen gtag-Pfaden**, Symptom **identisch** zu einer falschen URL / falschem env-Wert.
+
+**DIAGNOSE-REIHENFOLGE:** bei **404 vom Stape-Endpoint IMMER ZUERST den Container-Status im
+Stape-Dashboard prüfen**, BEVOR env/Code debuggt wird.
+
+**RISIKO für Live-Brands:** greift genau in **Traffic-Lücken** — zwischen Setup und Launch,
+oder bei einer Brand mit sporadischen Bestellungen. Ein deaktivierter Container verliert
+**echte Conversions** still.
+
+**Real passiert 2026-07-27** (auch schon 2026-06-23) — kostete **3 Debug-Runden** auf einer
+Trailing-Slash-/env-/URL-Hypothese, weil die 404-Log-Zeile weder URL noch Body zeigt und so
+wie ein URL-Bug aussieht.
+
+**MITIGATION (offen, für später):** Free-Tier reicht evtl. nicht — **Keepalive-Ping** (Cron
+gegen `/g/collect`) oder **bezahlter Tier** prüfen, damit der Container in stillen Phasen
+nicht abschaltet und echte Conversions verliert.
+
+### 9.2 · Asymmetrische Debug-Instrumentierung — refund nie in DebugView
+
+**purchase** ist DebugView-schaltbar (`GA4_PURCHASE_DEBUG=1` → `_dbg=1` auf dem gtag-Hit).
+**refund NICHT** — der refund-MP-Send geht **immer** ohne `debug_mode` an prod
+`/mp/collect` und landet in **Standard-Reports, nie DebugView** (by design; der
+`ga4-mp.ts`-`debug`-Arg schaltet nur den Validierungs-Endpoint `/debug/mp/collect`, der
+**nichts aufzeichnet**). **Wer refund in DebugView sucht, wartet ewig.**
+
+Konsequenz: der refund-**Recording**-Beweis geht **nur über die Monetization-Report**
+(+24–48 h, Refund = negativer Umsatz). Ein Vercel-`200` beweist nur den Send, nicht das
+Recording (prod `/mp/collect` dropt malformed still). *Optionaler Zukunfts-Block:*
+`GA4_REFUND_DEBUG` → `debug_mode: 1` in die refund-**params** (nicht der Endpoint-Switch),
+macht refund DebugView-sichtbar bei gleichbleibendem Recording.
+
+### 9.3 · Server-CAPI-Empfang ist NICHT im Plattform-Test-Tab sichtbar
+
+Der Meta-Test-Events-Tab (und analog TikTok/Pinterest) listet **nur die Website- und
+Offline-Kanäle** — **nicht** den **Server-Kanal** (bestätigt 2026-07-27). Ein server-seitig
+via Stape gesendetes CAPI-Event taucht dort also **nicht** auf. Die em/ip/ua-Bestätigung
+läuft daher über:
+1. **Server-Log:** `ud=attached` in der `[orders-paid] purchase sent …`-Zeile + die
+   Draht-Präsenz `ep.bs_ud=<redacted>` im `[debug]`-Log.
+2. **EMQ / Match-Qualität** in der Prod-Übersicht der Plattform über die nächsten Tage.
+
+---
+
+## 10 · Für Shop N+1 (Blueprint-Fork)
 
 Beim Forken auf einen neuen Shop: der **generische Teil ist die Methode**, der
 **SILBE-spezifische Teil sind Werte**, die neu parametrisiert werden müssen.
