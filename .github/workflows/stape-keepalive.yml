@@ -1,0 +1,99 @@
+# Stape Free-Tier Keepalive + fail-loud health monitor
+# =====================================================
+# WHY: Stape Free-Tier server containers are AUTO-DISABLED after >2 weeks without
+# requests → 404 on all gtag paths → purchase/refund tracking silently dies.
+# (Real incidents 2026-06-23 and 2026-07-27; see docs/verification-runbook.md §9.1.)
+# A daily ping keeps the inactivity clock from ever reaching two weeks. At ~30
+# requests/month it is a rounding error against the free-tier quota.
+#
+# WHAT this pings: GET <base>/healthz — the sGTM container's built-in health
+# endpoint. It returns `200 ok` and is NOT a gtag hit, so it does NOT run through
+# the GA4 client and fires NO server tag → it pollutes NEITHER GA4 NOR the CAPI
+# destinations (Meta/TikTok/Pinterest). That data-cleanliness is the whole reason
+# we ping /healthz and not /g/collect.
+#
+# UNVERIFIED (Free-Tier has NO request log → not directly checkable): whether
+# Stape counts a /healthz request toward the inactivity clock. If it does NOT,
+# the container would still sleep after ~2 weeks despite this ping — at which
+# point /healthz stops returning 200 and THIS WORKFLOW FAILS LOUD (red run →
+# GitHub notification). So the monitor is self-checking: a green run means the
+# container is currently healthy; the first red run flags either a real disable
+# or that /healthz never counted. Fallback then = Plan B (a minimal /g/collect
+# hit), but ONLY after verifying the container's server-tag triggers are
+# event-scoped so the keepalive can't fan out real events. Prefer /healthz.
+#
+# SCOPE: this guards ONLY the inactivity-disable. The SEPARATE monthly-limit
+# disable (Free-Tier quota does not renew → effectively permanent) is a launch
+# gate, not solvable here — upgrade Free→Paid before real traffic. See §9.1.
+#
+# SETUP (after merge): set repo secret STAPE_KEEPALIVE_URL to the container BASE
+# url WITHOUT a trailing path (e.g. https://ctsqyrwh.eus.stape.net); this
+# workflow appends /healthz. Not hardcoded → forkable per shop for N+1.
+#
+# NOTE: scheduled runs and the Actions "Run workflow" button only work once this
+# file is on the default branch (main). Test via workflow_dispatch after merge.
+
+name: stape-keepalive
+
+on:
+  schedule:
+    # 04:17 UTC daily — a fixed, off-peak, non-midnight slot (GitHub delays
+    # heavily-scheduled times like :00). Cron on the default branch only.
+    - cron: '17 4 * * *'
+  workflow_dispatch: {}
+
+# Least privilege: this job only makes one outbound HTTP request.
+permissions:
+  contents: read
+
+concurrency:
+  group: stape-keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Stape /healthz (fail loud if the container is not healthy)
+        env:
+          STAPE_KEEPALIVE_URL: ${{ secrets.STAPE_KEEPALIVE_URL }}
+        run: |
+          set -uo pipefail
+
+          BASE="${STAPE_KEEPALIVE_URL:-}"
+          if [ -z "$BASE" ]; then
+            echo "::error::STAPE_KEEPALIVE_URL secret is not set — cannot ping the container."
+            exit 1
+          fi
+
+          # Strip any trailing slash(es) from the base, then append the path, so
+          # both `…net` and `…net/` build a clean `…net/healthz` (mirrors the
+          # brand.config STAPE_SERVER_BASE normalization).
+          URL="${BASE%/}/healthz"
+          echo "Keepalive target: ${URL}"
+
+          attempt=1
+          max=3
+          while [ "$attempt" -le "$max" ]; do
+            code="$(curl -sS --max-time 15 -o /tmp/healthz_body -w '%{http_code}' "$URL" 2>/tmp/healthz_err || true)"
+            body="$(tr -d '[:space:]' < /tmp/healthz_body 2>/dev/null || true)"
+            echo "attempt ${attempt}/${max}: http=${code:-none} body='${body}'"
+
+            # Success = HTTP 200 AND a health-OK body. Not just "curl ran" — the
+            # container must actually answer healthy.
+            if [ "$code" = "200" ] && printf '%s' "$body" | grep -qi 'ok'; then
+              echo "✅ Stape container healthy — keepalive request delivered."
+              exit 0
+            fi
+
+            if [ -s /tmp/healthz_err ]; then sed 's/^/  curl: /' /tmp/healthz_err; fi
+            attempt=$((attempt + 1))
+            if [ "$attempt" -le "$max" ]; then
+              delay=$((attempt * 10))
+              echo "  unhealthy — retrying in ${delay}s…"
+              sleep "$delay"
+            fi
+          done
+
+          echo "::error::Stape /healthz UNHEALTHY after ${max} attempts (last http=${code:-none}, body='${body}'). The container is likely DISABLED (inactivity) — or /healthz never counted for the inactivity clock. Reactivate in the Stape dashboard and investigate; if it keeps sleeping, switch to Plan B (a minimal /g/collect hit AFTER verifying the container's server-tag triggers are event-scoped). See docs/verification-runbook.md §9.1."
+          exit 1
