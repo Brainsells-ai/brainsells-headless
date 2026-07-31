@@ -389,10 +389,10 @@ ausführbare Anleitung beschrieben — **Ausführung braucht echte Orders / Merl
 refund sent … 200` liefen — beide **ohne** `[brand.config] required env var …`-Throw ⇒
 die lazy Getter feuern mit echten env.
 - **Kauf-Seite:** ✅ real-delivery verifiziert.
-- **Refund-Seite:** 🔵 **gesendet (2xx)** + Block-A-Getter bestätigt, aber das
-  GA4-**Recording** ist damit NICHT bewiesen (refund hat keine DebugView-Instrumentierung;
-  prod `/mp/collect` dropt malformed still) → Recording-Beweis nur im Monetization-Report
-  (+24–48 h, s. #3-Mechanik). Nicht als „verifiziert" abhaken.
+- **Refund-Seite:** ✅ **real-delivery verifiziert 2026-07-31** — `refund sent` 200 (gesendet
+  + Block-A-Getter bestätigt) UND GA4-**Recording bestätigt**: GA4-Startseite „Erstattungen = 1"
+  → der refund ist in GA4 **recorded**, nicht nur gesendet (Vercel-200) und nicht still
+  gedroppt. Damit ist auch die Recording-Ebene (analog #3-Mechanik) für refund eingelöst.
 
 Historischer Watch: der Refactor war gemergt, aber die lazy fail-fast Getter feuern erst
 beim ersten echten Request — genau das ist mit obiger Lieferung eingelöst.
@@ -458,10 +458,12 @@ env-gegateter Debug-Replay-Endpoint, der einen einmal-gecaptureten signierten Bo
 kontrolliert 2× durchspielt — damit wird die echte Doppellieferung code-gestützt und
 reproduzierbar, ohne PII-Logging im Normalpfad.
 
-### ☐ #3 — GA4-Reports zeigen 0,50 (nicht 500000)
+### ✅ #3 — GA4-Reports zeigen 0,50 (nicht 500000)
 
-DebugView zeigt Geld in **Micros** (`500000`). Dass die **Reports** den korrekten
-`0,50 €` zeigen, ist noch nicht bestätigt.
+**Status: ✅ real-delivery verifiziert 2026-07-31.** GA4 Reports → Monetization → Items:
+Test-debug **7 gekaufte Artikel, 3,50 € Artikelumsatz = genau 0,50 €/Stück** — **kein**
+Micros-Artefakt in der Report-Verarbeitung. Das `500000` in DebugView war ein reines
+DebugView-Anzeige-Artefakt; der verarbeitete Report teilt korrekt durch 1e6.
 
 - **Auslöser:** eine **debug-OFF**-Order (`GA4_PURCHASE_DEBUG` leer), z. B. eine echte
   Kundenorder oder der #1020-Nachfolger.
