@@ -73,4 +73,49 @@ export const brandConfig = {
       return requireEnv('KLAVIYO_EDITORIAL_EVENT');
     },
   },
+
+  // Fulfillment provider selection for the Layer-1 fulfillment interface.
+  //
+  // NOTE: MEGAPROMPT §7.3 specifies a separate `config/brand.ts` holding a second
+  // `brandConfig`. That spec predates PR #64, which introduced THIS file. Building
+  // both would put two brandConfig objects in one codebase — the exact two-sources
+  // pattern the Schicht-0 fork documented as Leck #4. Decision 2026-08-06: the
+  // fulfillment block lives here, `config/brand.ts` is dropped.
+  //
+  // NOT wired into any SILBE route. SILBE's prints run through the Gelato Shopify
+  // app and its tote bags through Printful on app level — neither passes here.
+  //
+  // ---- Factory level vs. per-brand: the split, made explicit ----
+  // PRINTFUL_API_TOKEN is FACTORY level. One account-wide token serves every
+  // brand; it is not a per-brand secret, and it is read by the provider, not from
+  // here — a per-brand config has no business holding a shared credential.
+  //
+  // The store id below is PER BRAND. Verified 2026-08-06: the Printful account
+  // carries more than one store, and store-scoped endpoints require an explicit
+  // `X-PF-Store-Id`. "Take the only store" or "take the first" would resolve to
+  // the wrong one TODAY, and would silently send brand N+1's orders to brand 1's
+  // store. Discovered via API, written down explicitly — never inferred at runtime.
+  fulfillment: {
+    // Provider used for a line item that carries no explicit override.
+    get defaultProvider(): string {
+      return requireEnv('FULFILLMENT_DEFAULT_PROVIDER');
+    },
+
+    // Allowlist. A provider outside this list is refused by the router even if a
+    // product metafield names it — a mis-typed metafield must not route an order
+    // to a provider this brand never enabled.
+    get enabledProviders(): string[] {
+      return requireEnv('FULFILLMENT_ENABLED_PROVIDERS')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    },
+
+    printful: {
+      // Per-brand Printful store id (numeric, e.g. the shopify-type store).
+      get storeId(): string {
+        return requireEnv('PRINTFUL_STORE_ID');
+      },
+    },
+  },
 } as const;
