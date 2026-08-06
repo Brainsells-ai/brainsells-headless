@@ -46,8 +46,27 @@ const STATUS_MAP: Readonly<Record<string, OrderStatus['status']>> = {
   failed: 'failed',
 };
 
+export interface PrintfulProviderOptions {
+  /**
+   * Printful store this instance talks to. Part of the CONSTRUCTOR signature, not
+   * a per-call argument: one provider instance belongs to exactly one brand's
+   * store, and threading a store id through every call would make it possible to
+   * pass a different one per call — the mistake this design forecloses.
+   *
+   * Omit it and the value is resolved from brand.config on first use. Resolution
+   * stays lazy either way, so constructing a provider never touches the env.
+   */
+  storeId?: string;
+}
+
 export class PrintfulProvider implements FulfillmentProvider {
   readonly name = 'printful';
+
+  private readonly storeIdOverride?: string;
+
+  constructor(options: PrintfulProviderOptions = {}) {
+    this.storeIdOverride = options.storeId;
+  }
 
   private token(): string {
     const value = process.env.PRINTFUL_API_TOKEN;
@@ -58,7 +77,11 @@ export class PrintfulProvider implements FulfillmentProvider {
   }
 
   private storeId(): string {
-    return brandConfig.fulfillment.printful.storeId;
+    // Explicit injection wins; otherwise the per-brand value from brand.config.
+    // There is deliberately no "pick the only store" or "pick the first" path —
+    // the account carries several stores (verified 2026-08-06), so a positional
+    // fallback would silently route one brand's orders into another brand's store.
+    return this.storeIdOverride ?? brandConfig.fulfillment.printful.storeId;
   }
 
   private async request<T>(
@@ -252,12 +275,27 @@ export class PrintfulProvider implements FulfillmentProvider {
   }
 
   /**
-   * 🔴 UNVERIFIED SUBSYSTEM — fails closed on purpose.
+   * 🔴 SEARCHED, NOT FOUND — fails closed on purpose.
    *
-   * The spike did not establish Printful's webhook signing scheme: which header
-   * carries the signature, which algorithm, and over which bytes. Rather than
-   * return `true` and call the endpoint "verified", this requires an explicitly
-   * configured shared secret and a matching HMAC-SHA256 over the raw body.
+   * Status as of 2026-08-06, after actively looking rather than assuming:
+   * Printful's v2 release notes state the new webhooks add "enforcing HTTPS,
+   * added expiration date, and request signing". The developer documentation
+   * announces that request signing exists but does NOT specify the mechanism —
+   * no header name, no algorithm, no description of which bytes are signed and
+   * no account of how the secret is obtained. A web search over printful.com,
+   * help.printful.com and developers.printful.com surfaced the same sentence and
+   * nothing implementable.
+   *
+   * So this is not "we did not check". It is "we checked, the scheme is not
+   * published at the level needed to implement it". The remaining path is a real
+   * webhook delivery: register an endpoint, capture the headers of one genuine
+   * call, and derive the scheme from it. Until then the implementation below is a
+   * PLACEHOLDER — the header name in particular is a guess and must not be
+   * trusted.
+   *
+   * Rather than return `true` and call the endpoint "verified", this requires an
+   * explicitly configured shared secret and a matching HMAC-SHA256 over the raw
+   * body.
    *
    * Consequence, stated plainly: with PRINTFUL_WEBHOOK_SECRET unset, every
    * Printful webhook is rejected. That is the intended behaviour until the scheme
