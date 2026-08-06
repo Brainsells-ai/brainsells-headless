@@ -1,0 +1,27 @@
+# Normalise line endings so the repository stores LF regardless of the OS a
+# contributor works on. Without this, committing from Windows (core.autocrlf=true)
+# emits "LF will be replaced by CRLF" warnings and line endings can drift per
+# author, which shows up as whole-file diffs that hide the real change.
+#
+# Verified before adding: `git add --renormalize .` touches 0 files, so this is a
+# forward-looking rule, not a repository-wide rewrite.
+* text=auto eol=lf
+
+# Binary assets must never be line-ending converted.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.avif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.mp4 binary
+*.zip binary
+
+# Lockfiles are generated — keep them out of diff review noise.
+pnpm-lock.yaml linguist-generated=true -diff
