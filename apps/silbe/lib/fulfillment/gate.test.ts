@@ -38,7 +38,7 @@ function fileFor(widthPx: number, heightPx: number, over: Partial<PrintFile> = {
 
 describe('print-spec geometry', () => {
   it('turns inches x dpi into pixels, rounding up', () => {
-    expect(targetRasterFor(15, 18, 300)).toEqual({ widthPx: 9999, heightPx: 5400, dpi: 300 });
+    expect(targetRasterFor(15, 18, 300)).toEqual({ widthPx: 4500, heightPx: 5400, dpi: 300 });
     // 3.5in at 150dpi = 525 exactly; 1.13in at 150 = 169.5 → 170
     expect(targetRasterFor(1.13, 3, 150).widthPx).toBe(170);
   });

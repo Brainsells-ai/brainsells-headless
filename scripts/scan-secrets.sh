@@ -103,7 +103,11 @@ while IFS= read -r hit; do
   # Which rule fired? Checked only for real hits, so the cost is negligible.
   matched_rule="unknown-rule"
   for i in "${!RULE_NAMES[@]}"; do
-    if printf '%s' "$content" | grep -qE "${RULE_PATTERNS[$i]}"; then
+    # `-e` is required, not stylistic: the private-key pattern starts with "-",
+    # and without -e grep parses it as an option and dies with "unrecognized
+    # option". Surfaced only in CI (GNU grep), never locally — which is precisely
+    # why the deliberate red run exists.
+    if printf '%s' "$content" | grep -qE -e "${RULE_PATTERNS[$i]}"; then
       matched_rule="${RULE_NAMES[$i]}"
       break
     fi
