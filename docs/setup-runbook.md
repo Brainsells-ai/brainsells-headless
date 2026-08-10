@@ -93,7 +93,72 @@ Admin + Webhook-Secret), Payload (`PAYLOAD_SECRET`/`DATABASE_URI`), GA4 (Schritt
 Stape/brand.config (Schritt 4), Klaviyo/Consent/Widerruf (Schritt 6), Gelato (Schritt 7).
 
 **Ergebnis-Check:** `next build` + der erste Webhook-Request werfen **keinen**
-`[brand.config] required env var … is not set`.
+`[brand.config] required env var … is not set`. **Zusätzlich Schritt 2.1 abhaken** — ohne den
+kann eine Variable korrekt gesetzt und trotzdem unwirksam sein.
+
+---
+
+### Schritt 2.1 — Build-Zeit-Variablen in `turbo.json` deklarieren ⚠️ PFLICHT
+
+**Status:** 🟢 verifiziert (Gap #10, empirisch aufgeklärt 2026-08-10 an zwei Projekten —
+SILBE-Prod und dem Wegwerf-Fork `testabrand-headless`).
+
+**Warum das ein eigener Schritt ist und keine Falle am Rand:** Eine Variable kann in Vercel
+**korrekt gesetzt** sein — richtiger Wert, richtiger Scope, richtiges Projekt, nicht als
+„Sensitive" markiert — und den Code **trotzdem nie erreichen**. Es gibt keine Fehlermeldung,
+keinen roten Build, keinen Log-Hinweis. Der Code sieht schlicht `undefined` und fällt auf
+seinen Default zurück. „Korrekt gesetzt" sieht dabei exakt aus wie „wirksam".
+
+**Die Ursache:** `turbo.json` führt pro Task eine `env`-Liste. Ab **Turborepo 2.x ist
+`envMode: strict` der Default**, und in strict mode ist diese Liste eine **ALLOWLIST, kein
+Cache-Key**: turbo entfernt jede nicht deklarierte Variable aus der Task-Umgebung, bevor
+`next build` startet.
+
+**Betroffen sind nur Variablen, die zur BUILD-Zeit gelesen werden** — in diesem Repo
+`METADATA_BASE_URL` (via `sitemap.ts`, `robots.ts`, `metadataBase` in `layout.tsx`) und
+`EDITORIAL_METAFIELD_NAMESPACE` (via PDP-Prerender). **Laufzeit-Leser sind NICHT betroffen**:
+die Webhook-Pfade lesen ihre `brand.config`-Werte zur Request-Zeit, und die Runtime auf Vercel
+läuft nicht durch turbo. Das erklärt, warum GA4- und Stape-Keys nie auffällig wurden.
+
+**Aktion:** Jede Variable, die der Build liest, in `turbo.json` unter `tasks.build.env`
+eintragen. Beim Einführen eines neuen `brand.config`-Keys ist das der **zweite Schritt**, direkt
+nach dem Setzen in Vercel — nicht später.
+
+**Ergebnis-Check — kopierbar:**
+
+```bash
+npx turbo run build --dry        # menschenlesbar: Zeile "Env Vars = …"
+npx turbo run build --dry=json   # maschinenlesbar: envMode + aufgelöste Liste pro Task
+```
+
+Die neue Variable **muss** in der ausgegebenen Env-Liste stehen. Steht sie nicht drin, wird sie
+im Build entfernt — unabhängig davon, was in Vercel konfiguriert ist.
+
+**⚠️ Ein grüner CI-Lauf beweist hier NICHTS.** Der CI-Workflow baut mit `next build` direkt in
+`apps/silbe` und **umgeht turbo vollständig**; Vercel baut über das Root-Script
+`turbo run build`. Zwei Einstiegspunkte, nur einer filtert. Eine PR kann in CI grün sein und
+den Vercel-Build trotzdem rot machen — oder, schlimmer, still auf den Default zurückfallen.
+Die Prüfung muss deshalb **gegen den Vercel-Build** laufen, nicht gegen CI.
+
+**Verifikationsregel für die Messung am Deployment** (aus dem Schicht-0-Fork): **erst
+Gültigkeit prüfen, dann messen.** Zwei von drei Messrunden waren dort ungültig, weil das
+ausgelieferte Artefakt **älter** war als die Env-Änderung — und beide sahen wie ein handfester
+Befund aus. Belastbar sind nur:
+
+- der **Next.js-`buildId`** im ausgelieferten HTML (`\"b\":\"…\"` im RSC-Payload) — muss sich
+  gegenüber der Messung davor geändert haben;
+- der Abstand **`Date` minus `Last-Modified`** aus den Response-Headern — das Artefakt muss
+  jünger sein als die Env-Änderung.
+
+`X-Vercel-Cache` und `Age` genügen **nicht**: eine cache-busted Anfrage kann trotzdem ein altes
+Artefakt liefern.
+
+**Bekannte Falle:** ein Kommentar als `"//"`-Key in `turbo.json` ist gültiges JSON, aber
+**ungültiges turbo-Schema** (`Found an unknown key //`) und zerlegt jeden Build. `turbo.json`
+akzeptiert JSONC-Kommentare (`// …`). Und: mit `JSON.parse` validieren prüft nur die Syntax,
+nicht das Schema — dafür ist `npx turbo run build --dry` da.
+
+---
 
 **Bekannte Falle:**
 - **Block-A fail-fast:** ALLE `brand.config`-Vars (`STAPE_SERVER_BASE`,
