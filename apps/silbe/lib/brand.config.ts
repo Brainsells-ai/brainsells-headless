@@ -156,7 +156,47 @@ export const brandConfig = {
   // `X-PF-Store-Id`. "Take the only store" or "take the first" would resolve to
   // the wrong one TODAY, and would silently send brand N+1's orders to brand 1's
   // store. Discovered via API, written down explicitly — never inferred at runtime.
+  // KÜNFTIGE QUELLE FÜR DIE AUFTRAGSVERARBEITER-DEKLARATION. Wenn die Factory
+  // Rechtstexte (AGB/Datenschutz) pro Brand generiert, kommt die Liste der
+  // Fulfillment-Auftragsverarbeiter aus diesem Block — nicht aus einer zweiten,
+  // handgepflegten Aufstellung. Wer hier einen Provider ergänzt, ergänzt damit
+  // auch die Rechtstext-Quelle. Für SILBE selbst gilt das NICHT: dessen AGB und
+  // Datenschutz beschreiben den Ist-Zustand (Gelato für Drucke auf Shopify-App-
+  // Ebene, Printful für Tote Bags) und werden von hier nicht berührt.
   fulfillment: {
+    // Feature-Flag, DEFAULT AUS.
+    //
+    // Bewusste Abweichung von der Fail-Fast-Regel dieser Datei: dieser Wert hat
+    // einen Default, die anderen nicht. Der Grund ist die Richtung des Schadens.
+    // Ein fehlender Origin oder Namespace führt zu FALSCHER Ausgabe (silbe.at auf
+    // fremder Domain) — dort ist Werfen richtig. Ein fehlendes Feature-Flag führt
+    // zu GAR KEINER Ausgabe, und "aus" ist für ein noch unverifiziertes Subsystem
+    // der sichere Zustand. Ein Throw hier würde eine Route, die nichts tun soll,
+    // in einen 500 verwandeln.
+    get enabled(): boolean {
+      return process.env.FULFILLMENT_ENABLED === 'true';
+    },
+
+    // Shopify-Shop-Domains, für die die Dispatch-Route arbeiten darf.
+    // LEER BY DESIGN, solange kein Nicht-Prod-Store existiert — eine leere
+    // Allowlist heißt: die Route lehnt jede Anfrage ab. Das ist der gewünschte
+    // Zustand, kein unfertiger. SILBE.AT (z9xkt0-2v) gehört NICHT hier hinein.
+    get storeAllowlist(): string[] {
+      return (process.env.FULFILLMENT_STORE_ALLOWLIST ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    },
+
+    // Metafield-Namespace für die operativen Fulfillment-Metafields (aktuell nur
+    // das Varianten-Mapping). Bewusst getrennt von `editorial.namespace` und
+    // `marker.namespace`: drei unabhängige Verträge, die ein Fork verschieden
+    // setzen können muss. Genau die Vermischung war Leck #3.
+    // Runtime-only — der Resolver läuft zur Request-Zeit, nie im Build.
+    get metafieldNamespace(): string {
+      return requireEnv('FULFILLMENT_METAFIELD_NAMESPACE');
+    },
+
     // Provider used for a line item that carries no explicit override.
     get defaultProvider(): string {
       return requireEnv('FULFILLMENT_DEFAULT_PROVIDER');
