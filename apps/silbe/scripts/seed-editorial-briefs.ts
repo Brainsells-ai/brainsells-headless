@@ -4,6 +4,7 @@ import path from 'node:path';
 loadEnv({ path: path.resolve(__dirname, '..', '.env.local') });
 
 import { shopifyAdminFetch } from '../lib/shopify-admin';
+import { brandConfig } from '@/lib/brand.config';
 
 // Populates `silbe.editorial_context` for the 3 MVP edition products. The text
 // is the editorial brief that Klaviyo Flow 1 ("Bestellung Editorial") renders
@@ -25,7 +26,10 @@ import { shopifyAdminFetch } from '../lib/shopify-admin';
 // SHOPIFY_CLIENT_SECRET in .env.local. The script fails loudly if a handle
 // can't be resolved — no silent skip.
 
-const NAMESPACE = 'silbe';
+// Lazy: dotenv populates process.env at the top of this script, but reading
+// brand.config into a module constant still couples the value to import order.
+// A call keeps the read at the point of use.
+const namespace = (): string => brandConfig.editorial.namespace;
 const KEY = 'editorial_context';
 const METAFIELD_TYPE = 'multi_line_text_field';
 
@@ -108,7 +112,7 @@ async function setEditorialContext(gid: string, value: string): Promise<void> {
     metafields: [
       {
         ownerId: gid,
-        namespace: NAMESPACE,
+        namespace: namespace(),
         key: KEY,
         type: METAFIELD_TYPE,
         value,
@@ -128,7 +132,7 @@ async function setEditorialContext(gid: string, value: string): Promise<void> {
 async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
   console.log(`Mode: ${dryRun ? 'DRY-RUN' : 'LIVE'}`);
-  console.log(`Target: ${NAMESPACE}.${KEY} (${METAFIELD_TYPE})\n`);
+  console.log(`Target: ${namespace()}.${KEY} (${METAFIELD_TYPE})\n`);
 
   if (dryRun) {
     console.log(

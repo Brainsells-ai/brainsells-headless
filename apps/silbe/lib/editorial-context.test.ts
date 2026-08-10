@@ -16,6 +16,17 @@ import { buildEditorialMailItems } from './editorial-context';
 
 const adminFetch = vi.mocked(shopifyAdminFetch);
 
+// The editorial metafield namespace now comes from brand.config instead of the
+// hardcoded literal 'silbe' (Block-A Leck #3). brand.config getters throw on a
+// missing env by design, so the suite has to supply one — which is the point:
+// the test now documents that this module has a configuration requirement.
+beforeEach(() => {
+  vi.stubEnv('EDITORIAL_METAFIELD_NAMESPACE', 'silbe');
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 // Helpers — single source of test fixtures so each test stays readable.
 function gid(id: string): string {
   return `gid://shopify/Product/${id}`;

@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 import { config as loadEnv } from 'dotenv';
 import path from 'node:path';
+import { brandConfig } from '@/lib/brand.config';
 loadEnv({ path: path.resolve(__dirname, '..', '.env.local') });
 
 // Creates the 11 Pflicht-Metafield-Definitions per docs/vocabulary.md §5.3
@@ -101,7 +102,10 @@ const DEFINITIONS: Definition[] = [
   },
 ];
 
-const NAMESPACE = 'silbe';
+// Lazy: dotenv populates process.env at the top of this script, but reading
+// brand.config into a module constant still couples the value to import order.
+// A call keeps the read at the point of use.
+const namespace = (): string => brandConfig.editorial.namespace;
 
 type Env = {
   shop: string;
@@ -265,7 +269,7 @@ async function createDefinition(env: Env, def: Definition): Promise<'created' | 
       variables: {
         definition: {
           name: def.name,
-          namespace: NAMESPACE,
+          namespace: namespace(),
           key: def.key,
           description: def.description,
           type: def.type,
@@ -304,7 +308,7 @@ async function createDefinition(env: Env, def: Definition): Promise<'created' | 
 }
 
 function printDryRun(): void {
-  console.log(`Would create ${DEFINITIONS.length} metafield definitions in namespace "${NAMESPACE}", ownerType: PRODUCT, access.storefront: PUBLIC_READ.\n`);
+  console.log(`Would create ${DEFINITIONS.length} metafield definitions in namespace "${namespace()}", ownerType: PRODUCT, access.storefront: PUBLIC_READ.\n`);
   console.log('Key                       Type                       Name');
   console.log('----                      ----                       ----');
   for (const def of DEFINITIONS) {

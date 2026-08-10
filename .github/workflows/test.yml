@@ -49,6 +49,13 @@ jobs:
       NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN: ${{ secrets.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN }}
       NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN: ${{ secrets.NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN }}
       SHOPIFY_STOREFRONT_PRIVATE_TOKEN: ${{ secrets.SHOPIFY_STOREFRONT_PRIVATE_TOKEN }}
+      # Build-time since the Block-A fix: the PDP prerenders with
+      # dynamicParams=false, so getProductByHandle → metafieldIds() runs during
+      # `next build` and reads this through brand.config, which throws when unset.
+      # Not a secret — it is this brand's Shopify metafield namespace, and this
+      # repository IS SILBE. Written plainly rather than as an empty secret, so a
+      # fork sees exactly one place to change it.
+      EDITORIAL_METAFIELD_NAMESPACE: silbe
     steps:
       - uses: actions/checkout@v4
 

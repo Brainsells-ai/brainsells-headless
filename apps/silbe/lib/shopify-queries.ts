@@ -13,6 +13,7 @@ import {
 } from '@/lib/constants/voices';
 import { CANONICAL_HANDLES, EDITIONS } from '@/scripts/metafields-manifest';
 import { shopifyFetch, SHOPIFY_TAGS } from './shopify';
+import { brandConfig } from './brand.config';
 
 // ─── Shopify Response Types ────────────────────────────────────────────────
 
@@ -123,7 +124,7 @@ export type SummaryProduct = {
 
 // ─── Metafield Identifier Set ──────────────────────────────────────────────
 
-const METAFIELD_IDS = [
+const METAFIELD_KEYS = [
   'author_full_name',
   'author_handle',
   'work_title',
@@ -135,7 +136,21 @@ const METAFIELD_IDS = [
   'print_location',
   'editorial_essay_handle',
   'themes',
-].map((key) => ({ namespace: 'silbe', key }));
+] as const;
+
+// Built per call, NOT as a module-level constant, so merely IMPORTING this module
+// no longer reads the env — vitest and any importer stay unaffected.
+//
+// ⚠️ It is nevertheless a BUILD-TIME requirement, and it would be wrong to read
+// the lazy construction as making it runtime-only: the PDP sets
+// `dynamicParams = false` with `generateStaticParams()`, so getProductByHandle
+// runs during `next build` and calls straight into here. A missing
+// EDITORIAL_METAFIELD_NAMESPACE takes the build red. Intended — a fork must not
+// prerender pages that silently read SILBE's metafield namespace.
+function metafieldIds(): Array<{ namespace: string; key: string }> {
+  const namespace = brandConfig.editorial.namespace;
+  return METAFIELD_KEYS.map((key) => ({ namespace, key }));
+}
 
 // Manifest-driven voice lookup — primary SoT for voice resolution at runtime.
 // Manifest is the canonical editorial source-of-truth (β-strategy confirmed
@@ -344,7 +359,7 @@ export async function getProductByHandle(handle: string): Promise<ParsedProduct 
 
   const data = await shopifyFetch<{ product: ShopifyProductDetailRaw | null }>(
     PDP_QUERY,
-    { handle, ids: METAFIELD_IDS },
+    { handle, ids: metafieldIds() },
     { tags: [SHOPIFY_TAGS.product(handle), SHOPIFY_TAGS.products] },
   );
 
@@ -372,7 +387,7 @@ export async function getProductsByVoice(voice: CanonicalVoice): Promise<ParsedP
   assertCanonicalVoice(voice);
   const data = await shopifyFetch<{ products: { nodes: ShopifyProductDetailRaw[] } }>(
     PRODUCTS_BY_VOICE_QUERY,
-    { q: `tag:author:${voice}`, ids: METAFIELD_IDS },
+    { q: `tag:author:${voice}`, ids: metafieldIds() },
     { tags: [SHOPIFY_TAGS.products] },
   );
   return data.products.nodes
