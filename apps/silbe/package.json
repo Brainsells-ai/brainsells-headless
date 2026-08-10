@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "check-types": "tsc --noEmit",
     "lint:content": "tsx scripts/content-lint.ts",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
