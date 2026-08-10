@@ -4,6 +4,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "//": "ACHTUNG: turbo läuft mit envMode=strict (Default ab Turborepo 2.x, hier 2.9.9). Jede Variable, die der BUILD braucht, MUSS hier stehen — sonst entfernt turbo sie aus der Task-Umgebung, und der Code sieht sie nicht, obwohl sie in Vercel gesetzt ist. Das ist NICHT nur ein Cache-Key. CI fängt so einen Fehler nicht: der Workflow baut mit `next build` direkt in apps/silbe und umgeht turbo komplett, Vercel baut über dieses Root-Script.",
       "env": [
         "PAYLOAD_SECRET",
         "PAYLOAD_PUBLIC_SERVER_URL",
@@ -11,7 +12,8 @@
         "NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN",
         "NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN",
         "SHOPIFY_STOREFRONT_PRIVATE_TOKEN",
-        "NEXT_PUBLIC_GTM_ID"
+        "NEXT_PUBLIC_GTM_ID",
+        "EDITORIAL_METAFIELD_NAMESPACE"
       ],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": [".next/**", "!.next/cache/**"]
