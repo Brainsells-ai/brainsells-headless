@@ -73,7 +73,7 @@ export const brandConfig = {
       return requireEnv('KLAVIYO_EDITORIAL_EVENT');
     },
 
-    // Attribution string on newsletter subscriptions (Klaviyo `custom_source`).
+    // Attribution string on newsletter signups (Klaviyo `custom_source`).
     // Was hardcoded to 'silbe.at footer' in klaviyo.ts — a fork inherited SILBE's
     // attribution and could not tell its own signups apart in Klaviyo.
     get newsletterSource(): string {
