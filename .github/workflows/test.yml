@@ -11,6 +11,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Separate job, not a step in `silbe`: it needs no pnpm install and no env, so it
+  # finishes in seconds and reports independently. A credential leak should be
+  # attributable at a glance, not buried inside a build job that failed for some
+  # other reason.
+  #
+  # Anlass: on 2026-08-06 a real Shopify client secret sat in the working tree of
+  # apps/silbe/.env.example — a TRACKED file. It was never committed, but nothing
+  # in this repository would have stopped it. There are no git hooks (verified:
+  # .git/hooks holds only .sample, no husky, no lefthook, no lint-staged), so CI is
+  # the only layer available. Complements GitHub Push Protection, which acts before
+  # the push; this acts after it.
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fail-closed: any match exits non-zero and blocks the job. The script never
+      # prints a matched value — a scanner that echoes the secret into a public run
+      # log has leaked it a second time.
+      - name: Scan tracked files for credentials
+        run: bash scripts/scan-secrets.sh --verbose
+
   silbe:
     runs-on: ubuntu-latest
     defaults:
@@ -44,6 +66,25 @@ jobs:
 
       - name: Content lint
         run: pnpm lint:content
+
+      # The three cheap gates run BEFORE the build on purpose: each takes seconds,
+      # `next build` takes minutes. A broken type or a red test should surface in
+      # the first minute of a run, not after the slowest step has finished.
+      #
+      # Until now none of these ran in CI at all — only content-lint, build and
+      # Playwright did. That meant the unit suite (145 tests, including the
+      # fulfillment provider contract suite from #71) was enforced by nothing:
+      # a PR could break it and still go green. The contract suite is the evidence
+      # that the provider abstraction holds, so leaving it unenforced would have
+      # made that claim rest on whoever remembered to run vitest locally.
+      - name: Typecheck
+        run: pnpm check-types
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test:unit
 
       - name: Build
         run: pnpm build
