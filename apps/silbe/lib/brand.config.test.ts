@@ -48,3 +48,53 @@ describe('brandConfig.stape.serverBase — trailing-slash normalization', () => 
     expect(url).not.toContain('.net//g/collect');
   });
 });
+
+// Block-A Nachbesserung 2026-08-10: two values that were hardcoded to SILBE's
+// identity now come from env. The assertion that matters is the FAIL-FAST one —
+// a fork must be told loudly, not silently inherit SILBE's namespace or
+// attribution. These tests exist so a future "just add a default" cannot pass.
+
+describe('brandConfig.editorial.namespace — was the hardcoded literal "silbe"', () => {
+  const K = 'EDITORIAL_METAFIELD_NAMESPACE';
+  const before = process.env[K];
+  afterEach(() => {
+    if (before === undefined) delete process.env[K];
+    else process.env[K] = before;
+  });
+
+  it('returns the configured namespace', () => {
+    process.env[K] = 'someotherbrand';
+    expect(brandConfig.editorial.namespace).toBe('someotherbrand');
+  });
+
+  it('THROWS when unset instead of falling back to "silbe"', () => {
+    delete process.env[K];
+    expect(() => brandConfig.editorial.namespace).toThrow(/EDITORIAL_METAFIELD_NAMESPACE/);
+  });
+
+  it('is independent of the purchase-marker namespace', () => {
+    process.env[K] = 'editorial-ns';
+    process.env.MARKER_NAMESPACE = 'marker-ns';
+    expect(brandConfig.editorial.namespace).toBe('editorial-ns');
+    expect(brandConfig.marker.namespace).toBe('marker-ns');
+  });
+});
+
+describe('brandConfig.klaviyo.newsletterSource — was "silbe.at footer"', () => {
+  const K = 'KLAVIYO_NEWSLETTER_SOURCE';
+  const before = process.env[K];
+  afterEach(() => {
+    if (before === undefined) delete process.env[K];
+    else process.env[K] = before;
+  });
+
+  it('returns the configured attribution string', () => {
+    process.env[K] = 'meine-brand.at footer';
+    expect(brandConfig.klaviyo.newsletterSource).toBe('meine-brand.at footer');
+  });
+
+  it('THROWS when unset instead of attributing signups to silbe.at', () => {
+    delete process.env[K];
+    expect(() => brandConfig.klaviyo.newsletterSource).toThrow(/KLAVIYO_NEWSLETTER_SOURCE/);
+  });
+});

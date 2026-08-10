@@ -1,3 +1,4 @@
+import { brandConfig } from './brand.config';
 // Klaviyo server-only client for newsletter subscription.
 //
 // Double-Opt-In is configured per-list in the Klaviyo dashboard
@@ -29,7 +30,7 @@ export async function subscribeProfileToList(args: {
     data: {
       type: 'profile-subscription-bulk-create-job',
       attributes: {
-        custom_source: args.source ?? 'silbe.at footer',
+        custom_source: args.source ?? brandConfig.klaviyo.newsletterSource,
         profiles: {
           data: [
             {

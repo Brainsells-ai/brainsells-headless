@@ -28,6 +28,7 @@
 
 import { shopifyAdminFetch } from '@/lib/shopify-admin';
 import { canonicalUrl } from '@/lib/seo/canonical-url';
+import { brandConfig } from './brand.config';
 
 // One entry per Shopify order line-item, as parsed from the webhook payload.
 // productId is the raw numeric string from `line_items[].product_id`; sku +
@@ -60,15 +61,20 @@ type NodesResponse = {
   nodes: (ProductNode | null)[];
 };
 
+// The namespace travels as a GraphQL VARIABLE rather than being interpolated into
+// the query string. Two reasons: the query stays a static module-level constant
+// (no env read at import, so no build-time requirement), and the value never gets
+// concatenated into a query — which would be an injection surface if the config
+// were ever attacker-influenced.
 const EDITORIAL_MAIL_CONTEXT_QUERY = /* GraphQL */ `
-  query EditorialMailContext($ids: [ID!]!) {
+  query EditorialMailContext($ids: [ID!]!, $ns: String!) {
     nodes(ids: $ids) {
       ... on Product {
         id
         handle
         title
         featuredImage { url }
-        metafield(namespace: "silbe", key: "editorial_context") { value }
+        metafield(namespace: $ns, key: "editorial_context") { value }
       }
     }
   }
@@ -91,7 +97,7 @@ export async function buildEditorialMailItems(
   const gids = uniqueIds.map(toProductGid);
   const data = await shopifyAdminFetch<NodesResponse>(
     EDITORIAL_MAIL_CONTEXT_QUERY,
-    { ids: gids },
+    { ids: gids, ns: brandConfig.editorial.namespace },
   );
 
   const byGid = new Map<string, ProductNode>();

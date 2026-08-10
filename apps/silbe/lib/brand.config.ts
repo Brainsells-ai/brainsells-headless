@@ -72,6 +72,39 @@ export const brandConfig = {
     get editorialEvent(): string {
       return requireEnv('KLAVIYO_EDITORIAL_EVENT');
     },
+
+    // Attribution string on newsletter subscriptions (Klaviyo `custom_source`).
+    // Was hardcoded to 'silbe.at footer' in klaviyo.ts — a fork inherited SILBE's
+    // attribution and could not tell its own signups apart in Klaviyo.
+    get newsletterSource(): string {
+      return requireEnv('KLAVIYO_NEWSLETTER_SOURCE');
+    },
+  },
+
+  // Shopify metafield namespace for the EDITORIAL content contract
+  // (author_handle, work_title, quote_full, editorial_context, …).
+  //
+  // Distinct from `marker.namespace` above, which is the purchase-idempotency
+  // marker. Both happened to be the literal 'silbe', which is exactly why the
+  // ambiguity was worth removing: they are two independent contracts that can be
+  // set to different values by a fork.
+  //
+  // Was consumed at MODULE SCOPE in shopify-queries.ts and editorial-context.ts;
+  // both were restructured to build their identifier list / query lazily, so
+  // importing them no longer reads the env.
+  //
+  // ⚠️ THIS IS STILL A BUILD-TIME REQUIREMENT, and the lazy restructuring does not
+  // change that. The PDP sets `dynamicParams = false` + `generateStaticParams()`,
+  // so `getProductByHandle` — and through it `metafieldIds()` — runs during
+  // `next build`. A missing EDITORIAL_METAFIELD_NAMESPACE therefore takes the BUILD
+  // red, not just a request. Set it in the deployment env BEFORE merging.
+  //
+  // That is the intended trade: a fork that has not declared its own metafield
+  // namespace must not build a storefront that silently reads SILBE's.
+  editorial: {
+    get namespace(): string {
+      return requireEnv('EDITORIAL_METAFIELD_NAMESPACE');
+    },
   },
 
   // Fulfillment provider selection for the Layer-1 fulfillment interface.

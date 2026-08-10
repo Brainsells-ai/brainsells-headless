@@ -4,8 +4,9 @@ import path from 'node:path';
 loadEnv({ path: path.resolve(__dirname, '..', '.env.local') });
 
 import { shopifyFetch } from '../lib/shopify';
+import { brandConfig } from '@/lib/brand.config';
 
-// Pflicht-Metafields aus docs/vocabulary.md §5.3 — alle Namespace 'silbe'.
+// Pflicht-Metafields aus docs/vocabulary.md §5.3 — Namespace aus brand.config.
 // Diese Felder werden von der PDP gelesen (Material-Specs, JSON-LD,
 // Cross-Links). Fehlt eines, rendert die PDP mit Fallbacks oder leeren
 // strukturierten Daten.
@@ -71,7 +72,8 @@ async function main(): Promise<void> {
     `Found ${products.length} products. Checking ${REQUIRED_METAFIELDS.length} required metafields per product (namespace: silbe).\n`,
   );
 
-  const identifiers = REQUIRED_METAFIELDS.map((m) => ({ namespace: 'silbe', key: m.key }));
+  const ns = brandConfig.editorial.namespace;
+  const identifiers = REQUIRED_METAFIELDS.map((m) => ({ namespace: ns, key: m.key }));
   const failures: { handle: string; missing: string[] }[] = [];
 
   for (const product of products) {

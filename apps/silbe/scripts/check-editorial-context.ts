@@ -4,6 +4,7 @@ import path from 'node:path';
 loadEnv({ path: path.resolve(__dirname, '..', '.env.local') });
 
 import { shopifyAdminFetch } from '../lib/shopify-admin';
+import { brandConfig } from '@/lib/brand.config';
 
 // Lists every product in the shop with its silbe.editorial_context state.
 // The metafield is the Edition discriminator for the Editorial-Mail flow
@@ -19,14 +20,14 @@ import { shopifyAdminFetch } from '../lib/shopify-admin';
 // metafield (e.g. whitespace-only value).
 
 const QUERY = /* GraphQL */ `
-  query AllProductsEditorialContext($cursor: String) {
+  query AllProductsEditorialContext($cursor: String, $ns: String!) {
     products(first: 100, after: $cursor) {
       pageInfo { hasNextPage endCursor }
       edges {
         node {
           handle
           title
-          metafield(namespace: "silbe", key: "editorial_context") { value }
+          metafield(namespace: $ns, key: "editorial_context") { value }
         }
       }
     }
@@ -49,7 +50,10 @@ async function fetchAll(): Promise<Node[]> {
   const all: Node[] = [];
   let cursor: string | null = null;
   do {
-    const data: Response = await shopifyAdminFetch<Response>(QUERY, { cursor });
+    const data: Response = await shopifyAdminFetch<Response>(QUERY, {
+      cursor,
+      ns: brandConfig.editorial.namespace,
+    });
     for (const edge of data.products.edges) all.push(edge.node);
     cursor = data.products.pageInfo.hasNextPage
       ? data.products.pageInfo.endCursor
