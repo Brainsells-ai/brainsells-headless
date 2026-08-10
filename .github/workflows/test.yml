@@ -56,6 +56,12 @@ jobs:
       # repository IS SILBE. Written plainly rather than as an empty secret, so a
       # fork sees exactly one place to change it.
       EDITORIAL_METAFIELD_NAMESPACE: silbe
+      # Build-time seit Leck #1/#4: metadataBase ist ein Modul-Export, sitemap und
+      # robots werden im Build erzeugt. Fehlt der Wert, wirft brand.config und der
+      # Build geht rot — beabsichtigt. Kein Secret, sondern der Origin dieser Brand.
+      # Spiegelt den aktuellen Produktionswert; bei der Migration auf silbe.at hier
+      # UND in Vercel ändern.
+      METADATA_BASE_URL: https://brainsells-headless.vercel.app
     steps:
       - uses: actions/checkout@v4
 

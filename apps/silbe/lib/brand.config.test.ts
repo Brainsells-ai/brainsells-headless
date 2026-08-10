@@ -98,3 +98,40 @@ describe('brandConfig.klaviyo.newsletterSource — was "silbe.at footer"', () =>
     expect(() => brandConfig.klaviyo.newsletterSource).toThrow(/KLAVIYO_NEWSLETTER_SOURCE/);
   });
 });
+
+// Block-A Leck #1 + #4, behoben 2026-08-10. Die beiden Assertions, auf die es
+// ankommt: KEIN stiller Fallback auf silbe.at, und EINE Quelle für beide
+// Oberflächen — sonst entsteht der Split-Brain (Sitemap auf der neuen Domain,
+// canonical weiterhin silbe.at).
+
+describe('brandConfig.site.origin — war Literal + stiller Fallback', () => {
+  const K = 'METADATA_BASE_URL';
+  const before = process.env[K];
+  afterEach(() => {
+    if (before === undefined) delete process.env[K];
+    else process.env[K] = before;
+  });
+
+  it('returns the configured origin', () => {
+    process.env[K] = 'https://meine-brand.at';
+    expect(brandConfig.site.origin).toBe('https://meine-brand.at');
+  });
+
+  it('THROWS when unset instead of falling back to silbe.at', () => {
+    delete process.env[K];
+    expect(() => brandConfig.site.origin).toThrow(/METADATA_BASE_URL/);
+  });
+
+  it('never yields silbe.at for a brand that configured something else', () => {
+    process.env[K] = 'https://meine-brand.at';
+    expect(brandConfig.site.origin).not.toContain('silbe.at');
+  });
+
+  it('strips trailing slashes so joined URLs do not double up', () => {
+    process.env[K] = 'https://meine-brand.at///';
+    expect(brandConfig.site.origin).toBe('https://meine-brand.at');
+    expect(new URL('/editionen', brandConfig.site.origin).toString()).toBe(
+      'https://meine-brand.at/editionen',
+    );
+  });
+});
