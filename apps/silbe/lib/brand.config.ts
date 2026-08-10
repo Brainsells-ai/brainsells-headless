@@ -22,6 +22,34 @@ function requireEnv(name: string): string {
 }
 
 export const brandConfig = {
+  // This brand's own origin — the single source for every absolute URL the site
+  // emits. THE fix for Block-A Leck #1 + #4, which were two independent sources
+  // for one value:
+  //   - layout.tsx:36 held a bare literal `new URL('https://silbe.at')`, feeding
+  //     canonical + OG + Twitter of EVERY page with no env escape at all
+  //   - canonical-url.ts read METADATA_BASE_URL but fell back to 'https://silbe.at'
+  //     in silence, feeding sitemap, robots and JSON-LD
+  // Both now read this getter, so the two surfaces can no longer disagree — which
+  // was the actual danger: a fork that set the env correctly would have got a
+  // sitemap on its own domain while every page declared itself a silbe.at
+  // duplicate. Contradictory signals are worse for indexing than uniformly wrong
+  // ones.
+  //
+  // BUILD-TIME by nature and deliberately fail-fast: metadataBase is a module-level
+  // export and sitemap/robots are generated during `next build`. A missing value
+  // takes the build red instead of shipping someone else's canonical URLs. Because
+  // of that it MUST be declared in turbo.json's build env — turbo runs in strict
+  // mode and silently strips anything undeclared, which is exactly how this value
+  // stayed ineffective in production while being correctly set in Vercel (Gap #10).
+  site: {
+    get origin(): string {
+      // Trailing slashes stripped for the same reason as stape.serverBase: this
+      // value gets concatenated and passed to `new URL(path, base)`, and a stray
+      // slash produces doubled separators in emitted URLs.
+      return requireEnv('METADATA_BASE_URL').replace(/\/+$/, '');
+    },
+  },
+
   ga4: {
     // GA4 Web data-stream measurement id (G-…). Single source: both the server
     // `purchase` (orders/paid → Stape gtag) and the server `refund` (refunds/
