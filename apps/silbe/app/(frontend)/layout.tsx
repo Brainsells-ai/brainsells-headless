@@ -8,6 +8,7 @@ import { ConsentBanner } from '@/components/consent/ConsentBanner';
 import { GtmLoader } from '@/components/tracking/GtmLoader';
 import { PageViewTracker } from '@/components/tracking/PageViewTracker';
 import './globals.css';
+import { brandConfig } from '@/lib/brand.config';
 
 const cormorant = Cormorant_Garamond({
   weight: ['400', '600', '700'],
@@ -33,7 +34,11 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://silbe.at'),
+  // Leck #4, behoben 2026-08-10. War ein nacktes Literal ohne env-Ausweg: jede
+  // relativ gesetzte canonical-/OG-/Twitter-URL des GESAMTEN Frontends wurde
+  // dagegen aufgelöst, also emittierte ein Fork flächendeckend silbe.at.
+  // Build-Zeit-Auswertung ist hier unvermeidbar — das ist ein Modul-Export.
+  metadataBase: new URL(brandConfig.site.origin),
   title: {
     default: 'SILBE — Editorial Klassiker für Lesende im deutschsprachigen Raum',
     template: '%s · SILBE',

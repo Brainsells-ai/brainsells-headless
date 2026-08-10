@@ -19,7 +19,8 @@
         "NEXT_PUBLIC_SHOPIFY_STOREFRONT_TOKEN",
         "SHOPIFY_STOREFRONT_PRIVATE_TOKEN",
         "NEXT_PUBLIC_GTM_ID",
-        "EDITORIAL_METAFIELD_NAMESPACE"
+        "EDITORIAL_METAFIELD_NAMESPACE",
+        "METADATA_BASE_URL"
       ],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": [".next/**", "!.next/cache/**"]
