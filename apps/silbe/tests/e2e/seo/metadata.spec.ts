@@ -7,6 +7,11 @@ import { test, expect } from '@playwright/test';
 
 const FLAGSHIP_HANDLE = 'silbe-rilke-habegeduld';
 
+// Der Origin, den diese Deployment-Umgebung konfiguriert hat. Dieselbe Quelle,
+// aus der brandConfig.site.origin liest — der Test prüft damit die Kopplung
+// zwischen Konfiguration und ausgelieferter canonical-URL, statt einen Host zu raten.
+const EXPECTED_ORIGIN = (process.env.METADATA_BASE_URL ?? '').replace(/\/+$/, '');
+
 async function canonical(page: import('@playwright/test').Page): Promise<string | null> {
   return page.locator('link[rel="canonical"]').first().getAttribute('href');
 }
@@ -24,7 +29,17 @@ test.describe('SEO metadata @seo', () => {
 
     const href = await canonical(page);
     expect(href, 'canonical href').toBeTruthy();
-    expect(href!.replace(/\/$/, '')).toMatch(/\/$|silbe\.at$|localhost(:\d+)?$/);
+    // Brand-agnostisch gegen den KONFIGURIERTEN Origin, nicht gegen eine
+    // Host-Allowlist. Vorher stand hier `/\/$|silbe\.at$|localhost(:\d+)?$/` —
+    // das war die Test-Seite von Block-A Leck #1/#4: der Test wäre für einen Fork
+    // grün geblieben, der flächendeckend SILBEs canonical-URLs emittiert, weil
+    // silbe.at ausdrücklich als akzeptabel gelistet war. Ein Test, der die
+    // Fehlkonfiguration mit abnickt, ist schlimmer als keiner.
+    expect(
+      EXPECTED_ORIGIN,
+      'METADATA_BASE_URL muss für die SEO-Suite gesetzt sein',
+    ).toBeTruthy();
+    expect(href!.replace(/\/$/, '')).toBe(EXPECTED_ORIGIN);
 
     const og = await ogImage(page);
     expect(og, 'og:image').toBeTruthy();
