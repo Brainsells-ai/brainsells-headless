@@ -26,7 +26,7 @@
 //
 // Requires Node runtime — pulls Admin token via shopify-admin.ts.
 
-import { shopifyAdminFetch } from '@/lib/shopify-admin';
+import { deploymentStore, shopifyAdminFetch } from '@/lib/shopify-admin';
 import { canonicalUrl } from '@/lib/seo/canonical-url';
 import { brandConfig } from './brand.config';
 
@@ -96,6 +96,7 @@ export async function buildEditorialMailItems(
 
   const gids = uniqueIds.map(toProductGid);
   const data = await shopifyAdminFetch<NodesResponse>(
+    deploymentStore(),
     EDITORIAL_MAIL_CONTEXT_QUERY,
     { ids: gids, ns: brandConfig.editorial.namespace },
   );

@@ -22,6 +22,8 @@ loadEnv({ path: path.resolve(__dirname, '..', '.env.local') });
 
 import { brandConfig } from '@/lib/brand.config';
 import { VARIANT_MAPPING_KEY } from '@/lib/fulfillment/variant-mapping';
+import { shopDomainOf, type ShopifyStore } from '@/lib/shopify-admin';
+import { requireStoreArg, announceWriteTarget } from './lib/store-arg';
 
 const ADMIN_API_VERSION = process.env.ADMIN_API_VERSION ?? '2026-04';
 
@@ -34,19 +36,13 @@ const CREATE_MUTATION = /* GraphQL */ `
   }
 `;
 
-function requireEnv(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`${name} ist nicht gesetzt (apps/silbe/.env.local)`);
-  return v;
-}
-
-async function adminToken(domain: string): Promise<string> {
-  const res = await fetch(`https://${domain}/admin/oauth/access_token`, {
+async function adminToken(store: ShopifyStore): Promise<string> {
+  const res = await fetch(`https://${shopDomainOf(store)}/admin/oauth/access_token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', accept: 'application/json' },
     body: JSON.stringify({
-      client_id: requireEnv('SHOPIFY_CLIENT_ID'),
-      client_secret: requireEnv('SHOPIFY_CLIENT_SECRET'),
+      client_id: store.clientId,
+      client_secret: store.clientSecret,
       grant_type: 'client_credentials',
     }),
   });
@@ -65,8 +61,8 @@ async function adminToken(domain: string): Promise<string> {
 
 async function main(): Promise<void> {
   const dry = process.argv.includes('--dry');
-  const shop = requireEnv('SHOPIFY_SHOP');
-  const domain = shop.includes('.myshopify.com') ? shop : `${shop}.myshopify.com`;
+  const resolved = requireStoreArg();
+  const domain = shopDomainOf(resolved.store);
   const namespace = brandConfig.fulfillment.metafieldNamespace;
 
   const definition = {
@@ -90,7 +86,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  const token = await adminToken(domain);
+  announceWriteTarget(resolved);
+  const token = await adminToken(resolved.store);
   const res = await fetch(`https://${domain}/admin/api/${ADMIN_API_VERSION}/graphql.json`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
