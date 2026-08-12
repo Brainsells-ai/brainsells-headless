@@ -78,11 +78,12 @@ const QUERY = /* GraphQL */ `
  * der einzige Fulfillment-Pfad, der gegen einen anderen als den Deployment-Store
  * laufen könnte. Ein Default wäre hier am gefährlichsten.
  *
- * 🔴 UNVERIFIZIERT. Nie gegen einen echten Store gelaufen. Die Query-Form ist aus
- * der Admin-API-Doku abgeleitet, nicht empirisch bestätigt — insbesondere die
- * zwei aliasierten `metafield`-Felder auf ProductVariant und das Verhalten bei
- * fehlendem Metafield (erwartet `null`). Vor dem ersten Einsatz gegen einen
- * Dev-Store prüfen.
+ * ✅ VERIFIZIERT am 2026-08-12 gegen brainsells-pod-pool-dev, gegen echte
+ * Varianten mit gesetzten Metafields. Bestätigt: die zwei aliasierten
+ * `metafield`-Felder auf ProductVariant liefern beide Werte in EINEM Call
+ * (`{catalogVariantId:"19526", provider:"printful"}`), und eine nicht
+ * existierende Variante ergibt `node: null` → Resolver gibt `null` zurück, also
+ * den Hard-Fail-Pfad. Kein Throw, keine Teilantwort.
  */
 export function makeVariantResolver(store: ShopifyStore): VariantResolver {
   return async (shopifyVariantGid) => {

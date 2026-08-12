@@ -7,11 +7,10 @@
 // Datei zu legen hieße, zwei unabhängige Verträge zu koppeln — genau die
 // Vermischung, die als Leck #3 aufgeräumt wurde.
 //
-// 🔴 UNVERIFIZIERT — nie gegen einen Store gelaufen. Zum Zeitpunkt des Schreibens
-// existiert kein Nicht-Prod-Store, und SILBE.AT ist produktiv und ausgeschlossen.
-// Die Mutations-Form ist aus seed-metafield-definitions.ts übernommen (dort
-// verifiziert), der ownerType PRODUCTVARIANT und das Zusammenspiel mit den Scopes
-// sind es NICHT. Vor dem ersten Lauf gegen einen Dev-Store prüfen.
+// ✅ VERIFIZIERT am 2026-08-12 gegen brainsells-pod-pool-dev. Bestätigt: ownerType
+// PRODUCTVARIANT wird akzeptiert, und write_products genügt für Definitionen —
+// eine eigene Metafield-Berechtigung braucht es nicht. Beide Definitionen
+// angelegt, anschließend durch echte Produkte und den Resolver gegengeprüft.
 //
 // Aufruf:  pnpm tsx scripts/seed-fulfillment-metafield-definitions.ts [--dry]
 
