@@ -11,7 +11,7 @@
 //
 // Needs the `write_orders` scope. Requires Node runtime (callers pin nodejs).
 
-import { shopifyAdminFetch } from '@/lib/shopify-admin';
+import { deploymentStore, shopifyAdminFetch } from '@/lib/shopify-admin';
 
 type UserError = { field: string[] | null; message: string };
 
@@ -51,6 +51,7 @@ function throwOnUserErrors(context: string, errors: UserError[] | undefined): vo
  */
 export async function tagOrderWiderrufen(orderId: string): Promise<void> {
   const data = await shopifyAdminFetch<{ tagsAdd: { userErrors: UserError[] } }>(
+    deploymentStore(),
     TAGS_ADD_MUTATION,
     { id: orderId, tags: ['widerrufen'] },
   );
@@ -64,6 +65,7 @@ export async function tagOrderWiderrufen(orderId: string): Promise<void> {
  */
 export async function appendOrderNote(orderId: string, block: string): Promise<void> {
   const current = await shopifyAdminFetch<{ order: { note: string | null } | null }>(
+    deploymentStore(),
     ORDER_NOTE_QUERY,
     { id: orderId },
   );
@@ -72,6 +74,6 @@ export async function appendOrderNote(orderId: string, block: string): Promise<v
 
   const data = await shopifyAdminFetch<{
     orderUpdate: { order: { id: string } | null; userErrors: UserError[] };
-  }>(ORDER_NOTE_MUTATION, { id: orderId, note });
+  }>(deploymentStore(), ORDER_NOTE_MUTATION, { id: orderId, note });
   throwOnUserErrors('orderUpdate', data.orderUpdate.userErrors);
 }

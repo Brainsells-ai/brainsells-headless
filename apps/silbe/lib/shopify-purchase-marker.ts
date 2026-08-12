@@ -17,7 +17,7 @@
 //
 // Requires `read_orders` + `write_orders` (already held for the Widerruf flow).
 
-import { shopifyAdminFetch } from '@/lib/shopify-admin';
+import { deploymentStore, shopifyAdminFetch } from '@/lib/shopify-admin';
 import { brandConfig } from '@/lib/brand.config';
 
 const MARKER_KEY = 'ga4_purchase_sent';
@@ -49,14 +49,14 @@ type SetResp = {
 };
 
 export async function ga4PurchaseAlreadySent(orderGid: string): Promise<boolean> {
-  const data = await shopifyAdminFetch<ReadResp>(readQuery(brandConfig.marker.namespace), {
+  const data = await shopifyAdminFetch<ReadResp>(deploymentStore(), readQuery(brandConfig.marker.namespace), {
     id: orderGid,
   });
   return data.order?.metafield?.value === 'true';
 }
 
 export async function markGa4PurchaseSent(orderGid: string): Promise<void> {
-  const data = await shopifyAdminFetch<SetResp>(SET_MUTATION, {
+  const data = await shopifyAdminFetch<SetResp>(deploymentStore(), SET_MUTATION, {
     metafields: [
       {
         ownerId: orderGid,

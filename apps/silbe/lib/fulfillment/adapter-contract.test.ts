@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MockProvider } from './providers/mock';
 import { PrintfulProvider } from './providers/printful';
 import type { FulfillmentProvider, NormalizedOrder } from './types';
+import { normalizeShopifyOrder } from './normalize';
 
 function orderWith(items: NormalizedOrder['items']): NormalizedOrder {
   return {
@@ -180,5 +181,67 @@ describe('PrintfulProvider specifics', () => {
     const provider = new PrintfulProvider();
     const headers = new Headers({ 'x-printful-signature': 'anything' });
     expect(provider.verifyWebhook('{"a":1}', headers)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// normalize.ts gegen BEIDE Provider.
+//
+// Der Zweck ist nicht, normalize noch einmal zu testen — das tut normalize.test.ts.
+// Der Zweck ist die Nahtstelle: was normalizeShopifyOrder ausgibt, muss von jedem
+// Provider ohne Sonderbehandlung angenommen werden. Bricht das, ist entweder die
+// Normalisierung provider-spezifisch geworden oder ein Provider verlangt etwas
+// Eigenes — beides würde die Abstraktion aushöhlen, ohne dass ein bestehender
+// Test rot wird.
+// ---------------------------------------------------------------------------
+
+describe.each(SUBJECTS)('normalize → $name', ({ make }) => {
+  beforeEach(() => {
+    vi.stubEnv('PRINTFUL_API_TOKEN', 'test-token-not-a-real-secret');
+    vi.stubEnv('PRINTFUL_STORE_ID', '17916545');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it('akzeptiert eine normalisierte Order ohne provider-spezifische Anpassung', async () => {
+    const normalized = await normalizeShopifyOrder(
+      {
+        id: 501,
+        admin_graphql_api_id: 'gid://shopify/Order/501',
+        name: '#501',
+        currency: 'EUR',
+        total_price: '32.00',
+        customer: { first_name: 'Ada', last_name: 'Lovelace', email: 'ada@example.com' },
+        shipping_address: { address1: 'Teststraße 1', city: 'Wien', zip: '1010', country_code: 'AT' },
+        line_items: [
+          {
+            id: 1,
+            sku: 'SKU-1',
+            quantity: 1,
+            variant_id: 999,
+            properties: [{ name: 'printFileUrl', value: 'https://example.com/f.png' }],
+          },
+        ],
+      },
+      { resolveVariant: async () => 4025, defaultPlacement: 'front_large' },
+    );
+
+    // Printful geht über das Netz — Antwort stubben, damit die Nahtstelle und nicht
+    // die Konnektivität geprüft wird.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ data: { id: 170000001, status: 'draft' } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    );
+
+    const res = await make().createOrder(normalized);
+    expect(res.providerOrderId).toBeTruthy();
+    expect(['created', 'queued']).toContain(res.status);
   });
 });

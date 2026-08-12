@@ -9,7 +9,7 @@
 // Requires the `read_orders` scope (already held for the Widerruf flow) and the
 // Node runtime (the caller pins runtime='nodejs').
 
-import { shopifyAdminFetch } from '@/lib/shopify-admin';
+import { deploymentStore, shopifyAdminFetch } from '@/lib/shopify-admin';
 import { GA_CLIENT_ID_ATTR, GA_SESSION_ID_ATTR } from '@/lib/tracking/ga-cart-attributes';
 
 export type RefundOrderContext = {
@@ -62,7 +62,9 @@ const QUERY = /* GraphQL */ `
 export async function getRefundOrderContext(
   orderGid: string,
 ): Promise<RefundOrderContext | null> {
-  const data = await shopifyAdminFetch<OrderRefundContextResponse>(QUERY, { id: orderGid });
+  const data = await shopifyAdminFetch<OrderRefundContextResponse>(deploymentStore(), QUERY, {
+    id: orderGid,
+  });
   const order = data.order;
   if (!order) return null;
 

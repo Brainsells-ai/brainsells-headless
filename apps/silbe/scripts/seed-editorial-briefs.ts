@@ -3,8 +3,18 @@ import { config as loadEnv } from 'dotenv';
 import path from 'node:path';
 loadEnv({ path: path.resolve(__dirname, '..', '.env.local') });
 
-import { shopifyAdminFetch } from '../lib/shopify-admin';
+import { shopifyAdminFetch, type ShopifyStore } from '../lib/shopify-admin';
+import { requireStoreArg, announceWriteTarget } from './lib/store-arg';
 import { brandConfig } from '@/lib/brand.config';
+
+// Ziel-Store. Wird in main() aus --store aufgeloest; ein Zugriff davor wirft.
+// Bewusst kein Default: ein Default waere der Produktions-Store.
+let TARGET: ShopifyStore | null = null;
+function store(): ShopifyStore {
+  if (!TARGET) throw new Error('[store] Ziel-Store nicht gesetzt — requireStoreArg() fehlt in main()');
+  return TARGET;
+}
+
 
 // Populates `silbe.editorial_context` for the 3 MVP edition products. The text
 // is the editorial brief that Klaviyo Flow 1 ("Bestellung Editorial") renders
@@ -85,8 +95,7 @@ type ProductIdByHandleData = {
 };
 
 async function getProductGid(handle: string): Promise<string> {
-  const data = await shopifyAdminFetch<ProductIdByHandleData>(
-    PRODUCT_ID_BY_HANDLE,
+  const data = await shopifyAdminFetch<ProductIdByHandleData>(store(), PRODUCT_ID_BY_HANDLE,
     { query: `handle:${handle}` },
   );
   const node = data.products.edges[0]?.node;
@@ -108,7 +117,7 @@ type MetafieldsSetData = {
 };
 
 async function setEditorialContext(gid: string, value: string): Promise<void> {
-  const data = await shopifyAdminFetch<MetafieldsSetData>(METAFIELDS_SET, {
+  const data = await shopifyAdminFetch<MetafieldsSetData>(store(), METAFIELDS_SET, {
     metafields: [
       {
         ownerId: gid,
@@ -130,6 +139,10 @@ async function setEditorialContext(gid: string, value: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  const resolved = requireStoreArg();
+  TARGET = resolved.store;
+  announceWriteTarget(resolved);
+
   const dryRun = process.argv.includes('--dry-run');
   console.log(`Mode: ${dryRun ? 'DRY-RUN' : 'LIVE'}`);
   console.log(`Target: ${namespace()}.${KEY} (${METAFIELD_TYPE})\n`);

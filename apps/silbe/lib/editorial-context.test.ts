@@ -6,6 +6,14 @@ import type { EditorialLineItem } from './editorial-context';
 // dynamic import below picks them up.
 vi.mock('@/lib/shopify-admin', () => ({
   shopifyAdminFetch: vi.fn(),
+  // Store-Kontext ist seit dem Multi-Store-Refactor Pflichtparameter; der Mock
+  // muss ihn mitliefern, sonst wirft deploymentStore() beim Env-Lesen.
+  deploymentStore: vi.fn(() => ({
+    shop: 'test-shop',
+    clientId: 'test-id',
+    clientSecret: 'test-secret',
+    envPrefix: 'SHOPIFY_',
+  })),
 }));
 vi.mock('@/lib/seo/canonical-url', () => ({
   canonicalUrl: (path: string) => `https://silbe.at${path}`,
@@ -220,7 +228,7 @@ describe('buildEditorialMailItems — adjacent invariants', () => {
 
     expect(items).toHaveLength(1);
     expect(adminFetch).toHaveBeenCalledTimes(1);
-    const [, vars] = adminFetch.mock.calls[0];
+    const [, , vars] = adminFetch.mock.calls[0];
     expect((vars as { ids: string[] }).ids).toEqual([gid('1')]);
   });
 
@@ -311,7 +319,7 @@ describe('buildEditorialMailItems — adjacent invariants', () => {
       lineItem(gid('7'), 'SKU', 'Rilke (pre-wrapped GID)'),
     ]);
 
-    const [, vars] = adminFetch.mock.calls[0];
+    const [, , vars] = adminFetch.mock.calls[0];
     expect((vars as { ids: string[] }).ids).toEqual([gid('7')]);
   });
 });

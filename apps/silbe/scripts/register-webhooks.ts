@@ -2,8 +2,18 @@ import { config as loadEnv } from 'dotenv';
 import path from 'node:path';
 loadEnv({ path: path.resolve(__dirname, '..', '.env.local') });
 
-import { shopifyAdminFetch } from '../lib/shopify-admin';
+import { shopifyAdminFetch, type ShopifyStore } from '../lib/shopify-admin';
+import { requireStoreArg, announceWriteTarget } from './lib/store-arg';
 import { canonicalUrl } from '../lib/seo/canonical-url';
+
+// Ziel-Store. Wird in main() aus --store aufgeloest; ein Zugriff davor wirft.
+// Bewusst kein Default: ein Default waere der Produktions-Store.
+let TARGET: ShopifyStore | null = null;
+function store(): ShopifyStore {
+  if (!TARGET) throw new Error('[store] Ziel-Store nicht gesetzt — requireStoreArg() fehlt in main()');
+  return TARGET;
+}
+
 
 // Idempotent registration of the SILBE app's Shopify webhooks via Admin
 // GraphQL. Each subscription in SUBSCRIPTIONS is reconciled independently.
@@ -123,7 +133,7 @@ async function reconcile(sub: Subscription, dryRun: boolean): Promise<boolean> {
   const callbackUrl = canonicalUrl(sub.path);
   console.log(`\n── ${sub.topic} → ${callbackUrl}`);
 
-  const list = await shopifyAdminFetch<ListResponse>(LIST_QUERY, {
+  const list = await shopifyAdminFetch<ListResponse>(store(), LIST_QUERY, {
     topics: [sub.topic],
   });
   const existing = list.webhookSubscriptions.edges
@@ -159,7 +169,7 @@ async function reconcile(sub: Subscription, dryRun: boolean): Promise<boolean> {
   const webhookSubscription = { callbackUrl, format: 'JSON' };
 
   if (existing.length === 0) {
-    const data = await shopifyAdminFetch<CreateResponse>(CREATE_MUTATION, {
+    const data = await shopifyAdminFetch<CreateResponse>(store(), CREATE_MUTATION, {
       topic: sub.topic,
       webhookSubscription,
     });
@@ -173,7 +183,7 @@ async function reconcile(sub: Subscription, dryRun: boolean): Promise<boolean> {
   }
 
   // length === 1, different URL → update in place
-  const data = await shopifyAdminFetch<UpdateResponse>(UPDATE_MUTATION, {
+  const data = await shopifyAdminFetch<UpdateResponse>(store(), UPDATE_MUTATION, {
     id: existing[0].id,
     webhookSubscription,
   });
@@ -187,6 +197,10 @@ async function reconcile(sub: Subscription, dryRun: boolean): Promise<boolean> {
 }
 
 async function main(): Promise<void> {
+  const resolved = requireStoreArg();
+  TARGET = resolved.store;
+  announceWriteTarget(resolved);
+
   const dryRun = process.argv.includes('--dry-run');
   console.log(`Mode: ${dryRun ? 'DRY-RUN' : 'LIVE'}`);
 
