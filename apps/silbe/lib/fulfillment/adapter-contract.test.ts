@@ -22,6 +22,7 @@ function orderWith(items: NormalizedOrder['items']): NormalizedOrder {
   return {
     id: 'gid://shopify/Order/1',
     reference: '#1042',
+    brand: 'testbrand-a',
     customer: { email: 'a@example.com', firstName: 'Ada', lastName: 'Lovelace' },
     shippingAddress: {
       line1: 'Teststraße 1',
@@ -239,7 +240,7 @@ describe.each(SUBJECTS)('normalize → $name', ({ make }) => {
           },
         ],
       },
-      { resolveVariant: async () => ({ catalogVariantId: '4025', provider: null, placement: 'front_large' }) },
+      { resolveVariant: async () => ({ catalogVariantId: '4025', provider: null, placement: 'front_large', brand: 'testbrand-a' }) },
     );
 
     // Printful geht über das Netz — Antwort stubben, damit die Nahtstelle und nicht
@@ -304,6 +305,7 @@ describe.each(SUBJECTS)('normalize → $name', ({ make }) => {
           catalogVariantId: '19526',
           provider: null,
           placement: 'default',
+          brand: 'testbrand-b',
         }),
       },
     );

@@ -133,6 +133,7 @@ describe('router', () => {
   const order = (items: NormalizedOrder['items']): NormalizedOrder => ({
     id: 'gid://shopify/Order/1',
     reference: '#1',
+    brand: 'testbrand-a',
     customer: { email: 'a@example.com', firstName: 'A', lastName: 'B' },
     shippingAddress: { line1: 'x', city: 'Wien', postalCode: '1010', country: 'AT' },
     items,

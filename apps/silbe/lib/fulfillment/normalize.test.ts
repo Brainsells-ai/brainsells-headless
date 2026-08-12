@@ -6,7 +6,7 @@ import type { VariantResolver } from './variant-mapping';
 // injiziert), damit genau dieser Pfad ohne Store und ohne Netz prüfbar ist — er
 // soll nicht erst am echten Provider auffallen.
 
-const ok: VariantResolver = vi.fn(async () => ({ catalogVariantId: '4025', provider: null, placement: 'front_large' }));
+const ok: VariantResolver = vi.fn(async () => ({ catalogVariantId: '4025', provider: null, placement: 'front_large', brand: 'testbrand-a' }));
 const unknown: VariantResolver = vi.fn(async () => null);
 
 function payload(over: Partial<ShopifyOrderPayload> = {}): ShopifyOrderPayload {
@@ -51,7 +51,7 @@ describe('normalizeShopifyOrder — Happy Path', () => {
   });
 
   it('baut die Varianten-GID, wenn nur eine numerische variant_id kommt', async () => {
-    const spy: VariantResolver = vi.fn(async () => ({ catalogVariantId: '4025', provider: null, placement: 'front_large' }));
+    const spy: VariantResolver = vi.fn(async () => ({ catalogVariantId: '4025', provider: null, placement: 'front_large', brand: 'testbrand-a' }));
     await normalizeShopifyOrder(payload(), opts(spy));
     expect(spy).toHaveBeenCalledWith('gid://shopify/ProductVariant/999');
   });
@@ -89,6 +89,7 @@ describe('normalizeShopifyOrder — Happy Path', () => {
       catalogVariantId: '4025',
       provider: null,
       placement: null,
+      brand: 'testbrand-a',
     }));
     await expect(normalizeShopifyOrder(payload(), opts(ohnePlacement))).rejects.toThrow(
       OrderNotFulfillable,
@@ -105,6 +106,7 @@ describe('normalizeShopifyOrder — Happy Path', () => {
       catalogVariantId: '4025',
       provider: 'mock',
       placement: 'front_large',
+      brand: 'testbrand-a',
     }));
     const o = await normalizeShopifyOrder(
       payload({
@@ -130,9 +132,63 @@ describe('normalizeShopifyOrder — Happy Path', () => {
     expect(o.items[0].metadata.fulfillmentProvider).toBeUndefined();
   });
 
-  it('fällt ohne Property auf das übergebene Default-Placement zurück', async () => {
+  it('nimmt das Placement aus dem Mapping', async () => {
+    // Hiess "fällt ohne Property auf das übergebene Default-Placement zurück".
+    // Der Name log, nachdem das Default-Placement entfernt war: der Test blieb
+    // gruen, prueft aber seither etwas anderes als er behauptete. Dritter Fall
+    // derselben Sorte in dieser Datei-Familie.
     const o = await normalizeShopifyOrder(payload(), opts());
     expect(o.items[0].metadata.placement).toBe('front_large');
+  });
+});
+
+describe('normalizeShopifyOrder — eine Order, eine Marke', () => {
+  function zweiPositionen(brandA: string | null, brandB: string | null): VariantResolver {
+    return vi
+      .fn<VariantResolver>()
+      .mockResolvedValueOnce({
+        catalogVariantId: '19526', provider: null, placement: 'default', brand: brandA,
+      })
+      .mockResolvedValueOnce({
+        catalogVariantId: '19526', provider: null, placement: 'default', brand: brandB,
+      });
+  }
+  const zweiItems = {
+    line_items: [
+      { id: 1, sku: 'A', quantity: 1, variant_id: 111 },
+      { id: 2, sku: 'B', quantity: 1, variant_id: 222 },
+    ],
+  };
+
+  it('WIRFT bei zwei Marken in einem Warenkorb', async () => {
+    // Der Befund aus dem Durchstich (Szenario C, 2026-08-12): vorher entstand
+    // still EINE Printful-Order mit Positionen zweier Marken, weil routeOrder
+    // nach Provider gruppiert und beide Marken auf printful liegen.
+    await expect(
+      normalizeShopifyOrder(payload(zweiItems), opts(zweiPositionen('testbrand-a', 'testbrand-b'))),
+    ).rejects.toThrow(OrderNotFulfillable);
+  });
+
+  it('nennt beide Marken in der Meldung', async () => {
+    await expect(
+      normalizeShopifyOrder(payload(zweiItems), opts(zweiPositionen('testbrand-a', 'testbrand-b'))),
+    ).rejects.toThrow(/testbrand-a, testbrand-b/);
+  });
+
+  it('laesst zwei Positionen DERSELBEN Marke durch', async () => {
+    // Gegenprobe: der Waechter darf nicht jede mehrteilige Order ablehnen.
+    const o = await normalizeShopifyOrder(
+      payload(zweiItems),
+      opts(zweiPositionen('testbrand-a', 'testbrand-a')),
+    );
+    expect(o.items).toHaveLength(2);
+    expect(o.brand).toBe('testbrand-a');
+  });
+
+  it('WIRFT, wenn eine Position keine Marke traegt', async () => {
+    await expect(
+      normalizeShopifyOrder(payload(zweiItems), opts(zweiPositionen('testbrand-a', null))),
+    ).rejects.toThrow(/keine Marke/);
   });
 });
 
@@ -154,7 +210,7 @@ describe('normalizeShopifyOrder — HARD FAIL, kein Skip, kein Default', () => {
     // Ein Skip würde eine bezahlte Position still aus der Produktion fallen lassen.
     const resolve: VariantResolver = vi
       .fn<VariantResolver>()
-      .mockResolvedValueOnce({ catalogVariantId: '4025', provider: null, placement: 'front_large' })
+      .mockResolvedValueOnce({ catalogVariantId: '4025', provider: null, placement: 'front_large', brand: 'testbrand-a' })
       .mockResolvedValueOnce(null);
     await expect(
       normalizeShopifyOrder(

@@ -2,15 +2,20 @@
 // (Shopify-Variante → catalog_variant_id des Fulfillment-Providers).
 //
 // BEWUSST GETRENNT von seed-metafield-definitions.ts. Jenes Script pflegt den
-// EDITORIAL-Vertrag auf ownerType PRODUCT (author_handle, work_title, …). Dieses
-// hier pflegt einen OPERATIVEN Vertrag auf ownerType PRODUCTVARIANT. Beide in eine
-// Datei zu legen hieße, zwei unabhängige Verträge zu koppeln — genau die
-// Vermischung, die als Leck #3 aufgeräumt wurde.
+// EDITORIAL-Vertrag (author_handle, work_title, …), dieses den OPERATIVEN
+// Fulfillment-Vertrag. Beide in eine Datei zu legen hieße, zwei unabhängige
+// Verträge zu koppeln — genau die Vermischung, die als Leck #3 aufgeräumt wurde.
+//
+// Die Trennlinie ist der VERTRAG, nicht der ownerType. Anfangs fielen beide
+// zusammen (editorial = PRODUCT, fulfillment = PRODUCTVARIANT) und der Kommentar
+// hier benannte den ownerType als Unterschied. Seit `brand` dazukam — eine
+// Produkteigenschaft im Fulfillment-Vertrag — trägt diese Beschreibung nicht mehr.
 //
 // ✅ VERIFIZIERT am 2026-08-12 gegen brainsells-pod-pool-dev. Bestätigt: ownerType
-// PRODUCTVARIANT wird akzeptiert, und write_products genügt für Definitionen —
-// eine eigene Metafield-Berechtigung braucht es nicht. Beide Definitionen
-// angelegt, anschließend durch echte Produkte und den Resolver gegengeprüft.
+// PRODUCTVARIANT und PRODUCT werden akzeptiert, und write_products genügt für
+// Definitionen — eine eigene Metafield-Berechtigung braucht es nicht. Alle
+// Definitionen angelegt, anschließend durch echte Produkte und den Resolver
+// gegengeprüft.
 //
 // Aufruf:  pnpm tsx scripts/seed-fulfillment-metafield-definitions.ts [--dry]
 
@@ -21,6 +26,7 @@ loadEnv({ path: path.resolve(__dirname, '..', '.env.local') });
 
 import { brandConfig } from '@/lib/brand.config';
 import {
+  PRODUCT_BRAND_KEY,
   VARIANT_MAPPING_KEY,
   VARIANT_PLACEMENT_KEY,
   VARIANT_PROVIDER_KEY,
@@ -68,7 +74,9 @@ async function main(): Promise<void> {
   const domain = shopDomainOf(resolved.store);
   const namespace = brandConfig.fulfillment.metafieldNamespace;
 
-  // ZWEI Definitionen, beide ownerType PRODUCTVARIANT im Namespace aus brand.config.
+  // VIER Definitionen im Namespace aus brand.config: drei auf PRODUCTVARIANT
+  // (was die einzelne Variante über ihre Erfüllung aussagt) und eine auf PRODUCT
+  // (die Marke — eine Produkteigenschaft, siehe PRODUCT_BRAND_KEY).
   //
   // Zum Typ: bewusst single_line_text_field, NICHT number_integer. Printfuls
   // catalog_variant_id ist heute numerisch, aber der Key ist provider-agnostisch
@@ -108,6 +116,20 @@ async function main(): Promise<void> {
         'nicht, auf welches dieses Produkt druckt. Ohne sie ist die Variante nicht erfuellbar.',
       type: 'single_line_text_field',
       ownerType: 'PRODUCTVARIANT',
+    },
+    {
+      // EINZIGE Definition auf ownerType PRODUCT. Eine Marke ist eine Eigenschaft
+      // des Produkts; auf der Variante waere "Variante A gehoert Marke X,
+      // Variante B desselben Produkts Marke Y" darstellbar und bedeutungslos.
+      name: 'Brand',
+      namespace,
+      key: PRODUCT_BRAND_KEY,
+      description:
+        'Marke, zu der dieses Produkt gehoert. NICHT vendor: Shopifys vendor bedeutet ' +
+        'Hersteller/Lieferant und waere bei Print-on-Demand fuer jede Marke derselbe Wert. ' +
+        'Eine Order mit mehr als einer Marke ist ein harter Fehler.',
+      type: 'single_line_text_field',
+      ownerType: 'PRODUCT',
     },
   ];
 
