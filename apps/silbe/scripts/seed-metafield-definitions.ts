@@ -2,6 +2,7 @@
 import { config as loadEnv } from 'dotenv';
 import path from 'node:path';
 import { brandConfig } from '@/lib/brand.config';
+import { requireStoreArg, announceWriteTarget } from './lib/store-arg';
 loadEnv({ path: path.resolve(__dirname, '..', '.env.local') });
 
 // Creates the 11 Pflicht-Metafield-Definitions per docs/vocabulary.md §5.3
@@ -114,22 +115,15 @@ type Env = {
 };
 
 function readEnv(): Env {
-  let shop = process.env.SHOPIFY_SHOP;
-  const clientId = process.env.SHOPIFY_CLIENT_ID;
-  const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
-  const missing: string[] = [];
-  if (!shop) missing.push('SHOPIFY_SHOP');
-  if (!clientId) missing.push('SHOPIFY_CLIENT_ID');
-  if (!clientSecret) missing.push('SHOPIFY_CLIENT_SECRET');
-  if (missing.length > 0) {
-    console.error(`Missing in .env.local: ${missing.join(', ')}`);
-    console.error('See apps/silbe/.env.example for the Shopify Admin OAuth-2026 block.');
-    process.exit(1);
-  }
-  // Tolerate both "z9xkt0-2v" and "z9xkt0-2v.myshopify.com" by stripping the
-  // suffix — the OAuth endpoint wants the bare subdomain.
-  shop = shop!.replace(/\.myshopify\.com$/, '');
-  return { shop, clientId: clientId!, clientSecret: clientSecret! };
+  // Kein direkter process.env.SHOPIFY_*-Zugriff mehr: --store ist Pflicht, und
+  // die Credentials kommen ueber das gewaehlte Praefix. Ein Default waere hier
+  // der Produktions-Store gewesen, und dieses Script SCHREIBT.
+  const { store } = requireStoreArg();
+  return {
+    shop: store.shop.replace(/\.myshopify\.com$/, ''),
+    clientId: store.clientId,
+    clientSecret: store.clientSecret,
+  };
 }
 
 // Module-level token cache. expiresAt is wall-clock ms.
@@ -325,7 +319,9 @@ function printDryRun(): void {
 
 async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
+  const resolved = requireStoreArg();
   const env = readEnv();
+  if (!dryRun) announceWriteTarget(resolved);
 
   console.log(`Mode: ${dryRun ? 'DRY-RUN' : 'LIVE'}`);
   console.log(`Target: ${env.shop}.myshopify.com (Admin API ${ADMIN_API_VERSION})\n`);

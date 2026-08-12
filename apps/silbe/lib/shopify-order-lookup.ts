@@ -14,7 +14,7 @@
 //
 // Requires Node runtime (callers pin runtime='nodejs').
 
-import { shopifyAdminFetch } from '@/lib/shopify-admin';
+import { deploymentStore, shopifyAdminFetch } from '@/lib/shopify-admin';
 
 export type WiderrufOrderLineItem = {
   title: string;
@@ -124,7 +124,7 @@ export async function lookupOrderByNumberAndEmail(
   const normalizedEmail = email.trim().toLowerCase();
   if (!normalizedEmail) return null;
 
-  const data = await shopifyAdminFetch<OrderLookupResponse>(ORDER_LOOKUP_QUERY, {
+  const data = await shopifyAdminFetch<OrderLookupResponse>(deploymentStore(), ORDER_LOOKUP_QUERY, {
     query: `name:#${digits}`,
   });
 
@@ -142,6 +142,8 @@ export async function lookupOrderByNumberAndEmail(
  * Returns null if the order no longer exists. Throws only on Admin API failure.
  */
 export async function getWiderrufOrderById(orderId: string): Promise<WiderrufOrder | null> {
-  const data = await shopifyAdminFetch<OrderByIdResponse>(ORDER_BY_ID_QUERY, { id: orderId });
+  const data = await shopifyAdminFetch<OrderByIdResponse>(deploymentStore(), ORDER_BY_ID_QUERY, {
+    id: orderId,
+  });
   return data.order ? mapOrderNode(data.order) : null;
 }

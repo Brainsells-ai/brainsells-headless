@@ -3,8 +3,18 @@ import { config as loadEnv } from 'dotenv';
 import path from 'node:path';
 loadEnv({ path: path.resolve(__dirname, '..', '.env.local') });
 
-import { shopifyAdminFetch } from '../lib/shopify-admin';
+import { shopifyAdminFetch, type ShopifyStore } from '../lib/shopify-admin';
+import { requireStoreArg } from './lib/store-arg';
 import { brandConfig } from '@/lib/brand.config';
+
+// Ziel-Store. Wird in main() aus --store aufgeloest; ein Zugriff davor wirft.
+// Bewusst kein Default: ein Default waere der Produktions-Store.
+let TARGET: ShopifyStore | null = null;
+function store(): ShopifyStore {
+  if (!TARGET) throw new Error('[store] Ziel-Store nicht gesetzt — requireStoreArg() fehlt in main()');
+  return TARGET;
+}
+
 
 // Lists every product in the shop with its silbe.editorial_context state.
 // The metafield is the Edition discriminator for the Editorial-Mail flow
@@ -50,7 +60,7 @@ async function fetchAll(): Promise<Node[]> {
   const all: Node[] = [];
   let cursor: string | null = null;
   do {
-    const data: Response = await shopifyAdminFetch<Response>(QUERY, {
+    const data: Response = await shopifyAdminFetch<Response>(store(), QUERY, {
       cursor,
       ns: brandConfig.editorial.namespace,
     });
@@ -63,6 +73,10 @@ async function fetchAll(): Promise<Node[]> {
 }
 
 async function main(): Promise<void> {
+  const resolved = requireStoreArg();
+  TARGET = resolved.store;
+  console.log(`  liest gegen: ${resolved.store.shop}.myshopify.com ({resolved.store.envPrefix}*)`);
+
   const all = await fetchAll();
   const withBrief: Node[] = [];
   const whitespaceOnly: Node[] = [];
@@ -80,7 +94,7 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `Scanned ${all.length} products in ${process.env.SHOPIFY_SHOP ?? '(unknown shop)'}.\n`,
+    `Scanned ${all.length} products in ${store().shop}.\n`,
   );
   console.log(`WITH editorial_context (${withBrief.length}) — these become Edition mail items:`);
   for (const n of withBrief) console.log(`  · ${n.handle} — ${n.title}`);

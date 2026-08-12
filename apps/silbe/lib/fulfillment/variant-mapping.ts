@@ -14,7 +14,7 @@
 // können nicht auseinanderlaufen. Shopify bleibt Quelle der Wahrheit (Modell B).
 
 import { brandConfig } from '@/lib/brand.config';
-import { shopifyAdminFetch } from '@/lib/shopify-admin';
+import { shopifyAdminFetch, type ShopifyStore } from '@/lib/shopify-admin';
 
 /** Metafield-Key auf der Variante. Namespace kommt aus brand.config. */
 export const VARIANT_MAPPING_KEY = 'provider_catalog_variant_id';
@@ -40,7 +40,11 @@ const QUERY = /* GraphQL */ `
 `;
 
 /**
- * Echter Resolver gegen die Shopify Admin API.
+ * Baut einen Resolver fuer EINEN bestimmten Store.
+ *
+ * Store als Pflichtparameter, kein deploymentStore()-Default: dieser Resolver ist
+ * der einzige Fulfillment-Pfad, der ueberhaupt gegen einen anderen als den
+ * Deployment-Store laufen koennte. Ein Default waere hier am gefaehrlichsten.
  *
  * 🔴 UNVERIFIZIERT. Diese Funktion ist nie gegen einen echten Store gelaufen —
  * zum Zeitpunkt des Schreibens existiert kein Nicht-Prod-Store, und SILBE.AT ist
@@ -50,26 +54,28 @@ const QUERY = /* GraphQL */ `
  * fehlendem Metafield (erwartet `null`), und ob der Namespace-Zugriff die
  * Scopes der App abdeckt.
  */
-export const resolveVariantViaMetafield: VariantResolver = async (shopifyVariantGid) => {
-  const data = await shopifyAdminFetch<{
-    node: { id: string; metafield: { value: string } | null } | null;
-  }>(QUERY, {
-    id: shopifyVariantGid,
-    ns: brandConfig.fulfillment.metafieldNamespace,
-    key: VARIANT_MAPPING_KEY,
-  });
+export function makeVariantResolver(store: ShopifyStore): VariantResolver {
+  return async (shopifyVariantGid) => {
+    const data = await shopifyAdminFetch<{
+      node: { id: string; metafield: { value: string } | null } | null;
+    }>(store, QUERY, {
+      id: shopifyVariantGid,
+      ns: brandConfig.fulfillment.metafieldNamespace,
+      key: VARIANT_MAPPING_KEY,
+    });
 
-  const raw = data.node?.metafield?.value?.trim();
-  if (!raw) return null;
+    const raw = data.node?.metafield?.value?.trim();
+    if (!raw) return null;
 
-  const parsed = Number(raw);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    // Ein gesetztes, aber unbrauchbares Mapping ist schlimmer als gar keines:
-    // es sieht nach Konfiguration aus. Deshalb werfen statt null zurückgeben.
-    throw new Error(
-      `[variant-mapping] Variante ${shopifyVariantGid} trägt ein ungültiges Mapping ` +
-        `("${raw}") — erwartet wird eine positive Ganzzahl (catalog_variant_id).`,
-    );
-  }
-  return parsed;
-};
+    const parsed = Number(raw);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      // Ein gesetztes, aber unbrauchbares Mapping ist schlimmer als gar keines:
+      // es sieht nach Konfiguration aus. Deshalb werfen statt null zurueckgeben.
+      throw new Error(
+        `[variant-mapping] Variante ${shopifyVariantGid} traegt ein ungueltiges Mapping ` +
+          `("${raw}") — erwartet wird eine positive Ganzzahl (catalog_variant_id).`,
+      );
+    }
+    return parsed;
+  };
+}

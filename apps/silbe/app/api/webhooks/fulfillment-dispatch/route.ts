@@ -16,6 +16,8 @@
 //   2. Feature-Flag, Default AUS
 //   3. Store-Allowlist, LEER by design — ohne Eintrag arbeitet die Route für
 //      keinen Store, auch nicht für SILBE.AT
+//   4. Store-Credential-Abgleich: der liefernde Shop muss der sein, dessen
+//      Zugangsdaten dieses Deployment hält
 // Provider-Orders entstehen ausschließlich als DRAFT; ein Confirm-Aufruf existiert
 // in diesem Code nicht (per Test abgesichert, s. lib/fulfillment/guards.test.ts).
 
@@ -23,7 +25,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { verifyShopifyWebhook } from '@/lib/shopify-webhook-hmac';
 import { brandConfig } from '@/lib/brand.config';
 import { normalizeShopifyOrder, OrderNotFulfillable } from '@/lib/fulfillment/normalize';
-import { resolveVariantViaMetafield } from '@/lib/fulfillment/variant-mapping';
+import { makeVariantResolver } from '@/lib/fulfillment/variant-mapping';
+import { deploymentStore, shopDomainOf } from '@/lib/shopify-admin';
 import { routeOrder } from '@/lib/fulfillment/router';
 
 export const runtime = 'nodejs';
@@ -57,6 +60,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: true, dispatched: false, reason: 'store-not-allowlisted' });
   }
 
+  // Gurt 4 — der liefernde Store MUSS der sein, dessen Credentials dieses
+  // Deployment haelt. Sonst wuerde eine Lieferung von Store A mit den
+  // Zugangsdaten von Store B beantwortet: Allowlist und Credential-Herkunft
+  // muessen uebereinstimmen, nicht nur je fuer sich stimmen.
+  const store = deploymentStore();
+  if (shopDomain !== shopDomainOf(store)) {
+    console.error(
+      `[fulfillment-dispatch] Store-Mismatch: Lieferung von "${shopDomain}", ` +
+        `Credentials fuer "${shopDomainOf(store)}" — keine Aktion.`,
+    );
+    return NextResponse.json({ ok: true, dispatched: false, reason: 'store-credential-mismatch' });
+  }
+
   let payload: unknown;
   try {
     payload = JSON.parse(rawBody);
@@ -66,7 +82,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   try {
     const order = await normalizeShopifyOrder(payload as never, {
-      resolveVariant: resolveVariantViaMetafield,
+      resolveVariant: makeVariantResolver(store),
       defaultPlacement: DEFAULT_PLACEMENT,
     });
 
