@@ -186,6 +186,16 @@ export class PrintfulProvider implements FulfillmentProvider {
   }
 
   /**
+   * ███ UNERREICHT — DIESE METHODE WIRD NICHT AUFGERUFEN ███
+   *
+   * Kein Produktivpfad ruft sie. Der Erreichbarkeits-Waechter in guards.test.ts
+   * findet sie NICHT: er misst Module, und printful.ts ist laengst verdrahtet.
+   * Ein unerreichter Export in einem erreichten Modul braeuchte einen
+   * Aufrufgraphen. Solange es den nicht gibt, steht hier dieser Marker.
+   *
+   * Die zwei Fehler unten (Paging, Orientierung) sind der Beleg dafuer, warum das
+   * zaehlt: beide waren durch das Totsein konserviert.
+   *
    * Placement geometry for one catalog variant, straight from the catalog.
    * This is the data-driven half of the validation gate.
    *
