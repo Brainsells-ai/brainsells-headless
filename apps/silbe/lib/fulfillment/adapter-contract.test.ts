@@ -14,7 +14,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MockProvider } from './providers/mock';
-import { PrintfulProvider } from './providers/printful';
+import { PrintfulProvider, printfulExternalId } from './providers/printful';
 import type { FulfillmentProvider, NormalizedOrder } from './types';
 import { normalizeShopifyOrder } from './normalize';
 
@@ -146,6 +146,218 @@ describe('MockProvider specifics', () => {
     expect(status.status).toBe('shipped');
 
     await expect(provider.cancelOrder(created.providerOrderId)).rejects.toThrow(/shipped/);
+  });
+});
+
+describe('PrintfulProvider — external_id-Idempotenz', () => {
+  // Printfuls external_id ist eindeutig pro Store und die Eindeutigkeit UEBERLEBT
+  // DIE LOESCHUNG (live verifiziert 2026-08-12). external_id ist die
+  // Shopify-Order-GID; geht createOrder durch und die Antwort verloren, liefert
+  // Shopify erneut zu. Ohne Idempotenz antwortet die Route 500, Shopify liefert
+  // wieder, und der Fehler kann NIE aufhoeren — die Order existiert ja.
+  // Eine REALISTISCHE Shopify-Order-GID: 13-stellige Id, zusammen 33 Zeichen —
+  // ueber Printfuls Grenze von 32. Genau die Laenge, die die frueheren Proben mit
+  // kuenstlich kurzen Ids verfehlt haben.
+  const EXT = 'gid://shopify/Order/5678901234567';
+
+  function order(): NormalizedOrder {
+    return {
+      id: EXT,
+      reference: '#555',
+      brand: 'testbrand-a',
+      customer: { email: 'a@example.com', firstName: 'Ada', lastName: 'Lovelace' },
+      shippingAddress: { line1: 'Teststrasse 1', city: 'Wien', postalCode: '1010', country: 'AT' },
+      items: [
+        {
+          sku: 'TBA-POSTER-A2',
+          productHandle: 'h',
+          quantity: 1,
+          metadata: {
+            catalogVariantId: '19526',
+            placement: 'default',
+            printFileUrl: 'https://example.com/f.png',
+          },
+        },
+      ],
+      currency: 'EUR',
+      totalAmount: 29,
+    };
+  }
+
+  /** Printful-Doppel mit EINEM Zustand: welche external_ids sind vergeben. */
+  function stubPrintful() {
+    const vergeben = new Map<string, { id: number; status: string }>();
+    let nextId = 170000001;
+    const posts: unknown[] = [];
+    const json = (b: unknown, status = 200) =>
+      new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json' } });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.includes('/v2/catalog-variants/')) {
+          return json({ data: { catalog_product_id: 171, placement_dimensions: [] } });
+        }
+        if (url.includes('/v2/catalog-products/')) {
+          return json({ data: { placements: [{ placement: 'default', technique: 'digital' }] } });
+        }
+        // Lookup per @external_id
+        const at = url.match(/\/v2\/orders\/@(.+)$/);
+        if (at && init?.method === undefined) {
+          const hit = vergeben.get(decodeURIComponent(at[1]));
+          return hit
+            ? json({ data: { id: hit.id, status: hit.status, external_id: decodeURIComponent(at[1]) } })
+            : json({ error: { message: 'not found' } }, 404);
+        }
+        if (url.endsWith('/v2/orders') && init?.method === 'POST') {
+          const body = JSON.parse(init.body as string);
+          posts.push(body);
+          const ext = body.external_id as string;
+          if (vergeben.has(ext)) {
+            // Wortlaut aus der echten API, damit die Erkennung an dem haengt,
+            // was Printful tatsaechlich sendet.
+            return json(
+              {
+                error: {
+                  reason: 'BadRequest',
+                  message:
+                    'External ID validation error. external_id must be unique per store, ' +
+                    `${ext} is already used by store 17916545`,
+                },
+              },
+              400,
+            );
+          }
+          const id = nextId++;
+          vergeben.set(ext, { id, status: 'draft' });
+          return json({ data: { id, status: 'draft' } });
+        }
+        throw new Error(`unerwarteter Aufruf: ${init?.method ?? 'GET'} ${url}`);
+      }),
+    );
+    return { vergeben, posts };
+  }
+
+  beforeEach(() => {
+    vi.stubEnv('PRINTFUL_API_TOKEN', 'test-token-not-a-real-secret');
+    vi.stubEnv('PRINTFUL_STORE_ID', '17916545');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it('zweiter identischer Aufruf liefert dieselbe Order-ID, ohne eine zweite anzulegen', async () => {
+    const { vergeben } = stubPrintful();
+    const provider = new PrintfulProvider();
+
+    const first = await provider.createOrder(order());
+    const second = await provider.createOrder(order());
+
+    expect(second.providerOrderId).toBe(first.providerOrderId);
+    expect(second.status).toBe('created');
+    expect(vergeben.size, 'es darf genau EINE Order geben').toBe(1);
+  });
+
+  it('meldet den Konflikt als Erfolg — kein Throw', async () => {
+    stubPrintful();
+    const provider = new PrintfulProvider();
+    await provider.createOrder(order());
+    await expect(provider.createOrder(order())).resolves.toBeTruthy();
+  });
+
+  it('kennzeichnet die zweite Antwort als idempotent', async () => {
+    stubPrintful();
+    const provider = new PrintfulProvider();
+    await provider.createOrder(order());
+    const second = await provider.createOrder(order());
+    expect((second.raw as { idempotent?: boolean }).idempotent).toBe(true);
+  });
+
+  it('WIRFT, wenn die external_id vergeben ist, aber keine Order auffindbar', async () => {
+    // Der widerspruechliche Zustand — u.a. nach einer geloeschten Order, denn
+    // Printful gibt die external_id NICHT frei. Blind Erfolg zu melden waere hier
+    // der teuerste Fehler: eine Order gaelte als angelegt, die es nicht gibt.
+    //
+    // Der Stub liefert deshalb GENAU diese Kombination: POST -> Konflikt,
+    // Lookup -> 404. Ein erster Anlauf delegierte das POST an einen anderen Stub
+    // und legte die Order dabei wirklich an — dann kam gar kein Konflikt und der
+    // Test war rot aus dem falschen Grund.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.includes('/v2/catalog-variants/')) {
+          return new Response(JSON.stringify({ data: { catalog_product_id: 171 } }), { status: 200 });
+        }
+        if (url.includes('/v2/catalog-products/')) {
+          return new Response(
+            JSON.stringify({ data: { placements: [{ placement: 'default', technique: 'digital' }] } }),
+            { status: 200 },
+          );
+        }
+        if (url.includes('/v2/orders/@')) {
+          return new Response(JSON.stringify({ error: { message: 'not found' } }), { status: 404 });
+        }
+        if (init?.method === 'POST') {
+          return new Response(
+            JSON.stringify({
+              error: {
+                message:
+                  'External ID validation error. external_id must be unique per store, ' +
+                  `${printfulExternalId(EXT)} is already used by store 17916545`,
+              },
+            }),
+            { status: 400 },
+          );
+        }
+        throw new Error(`unerwartet: ${url}`);
+      }),
+    );
+    await expect(new PrintfulProvider().createOrder(order())).rejects.toThrow(/widerspruechlich/);
+  });
+
+  it('macht aus einer Shopify-GID eine external_id unter 32 Zeichen', () => {
+    expect(EXT.length).toBeGreaterThan(32);
+    const ext = printfulExternalId(EXT);
+    expect(ext).toBe('5678901234567');
+    expect(ext.length).toBeLessThanOrEqual(32);
+  });
+
+  it('ist deterministisch — Wiederholung ergibt dieselbe external_id', () => {
+    // Ohne das greift die Idempotenz nicht: eine zufaellige oder zeitabhaengige
+    // Id waere bei jeder Zustellung eine andere und legte jedes Mal neu an.
+    expect(printfulExternalId(EXT)).toBe(printfulExternalId(EXT));
+  });
+
+  it('KUERZT eine zu lange Nicht-GID nicht, sondern wirft', () => {
+    // Kuerzen koennte zwei Orders auf dieselbe Id abbilden — die zweite gaelte
+    // dann als bereits angelegt und wuerde nie produziert. Eine bezahlte
+    // Bestellung, die still verschwindet, ist das Schlimmste hier.
+    expect(() => printfulExternalId('x'.repeat(33))).toThrow(/33 Zeichen/);
+  });
+
+  it('weist einen ANDEREN 400er nicht als Erfolg durch', async () => {
+    // Gegenprobe zur Konflikt-Erkennung: sie ist bewusst eng. Eine weiche Pruefung
+    // wuerde echte Validierungsfehler als "existiert schon" durchwinken.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url.includes('/v2/catalog-variants/')) {
+          return new Response(JSON.stringify({ data: { catalog_product_id: 171 } }), { status: 200 });
+        }
+        if (url.includes('/v2/catalog-products/')) {
+          return new Response(
+            JSON.stringify({ data: { placements: [{ placement: 'default', technique: 'digital' }] } }),
+            { status: 200 },
+          );
+        }
+        return new Response(
+          JSON.stringify({ error: { message: 'Invalid recipient: zip is required' } }),
+          { status: 400 },
+        );
+      }),
+    );
+    await expect(new PrintfulProvider().createOrder(order())).rejects.toThrow(/zip is required/);
   });
 });
 

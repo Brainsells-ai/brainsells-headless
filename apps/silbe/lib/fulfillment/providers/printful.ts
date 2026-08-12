@@ -46,6 +46,75 @@ const STATUS_MAP: Readonly<Record<string, OrderStatus['status']>> = {
   failed: 'failed',
 };
 
+/**
+ * HTTP-Fehler von Printful, mit Status und Rohtext.
+ *
+ * Vorher war das ein nacktes Error mit allem im Text — ein Aufrufer, der auf
+ * einen BESTIMMTEN Fehler reagieren will, musste den Text parsen. Genau das
+ * brauchte die external_id-Idempotenz.
+ */
+export class PrintfulHttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly body: string,
+  ) {
+    super(message);
+    this.name = 'PrintfulHttpError';
+  }
+}
+
+/**
+ * Ist das der external_id-Konflikt — also "gibt es schon"?
+ *
+ * Bewusst eng: Status 400 UND die beiden kennzeichnenden Wortteile. Eine weiche
+ * Pruefung (nur "external_id") wuerde auch echte Validierungsfehler als Erfolg
+ * durchwinken, und ein falsch-positiver Erfolg ist hier der teuerste Fehler:
+ * dann gilt eine Order als angelegt, die es nicht gibt.
+ */
+function isExternalIdConflict(e: unknown): boolean {
+  if (!(e instanceof PrintfulHttpError) || e.status !== 400) return false;
+  const b = e.body.toLowerCase();
+  return b.includes('external_id') && b.includes('unique');
+}
+
+/**
+ * Printfuls external_id ist auf 32 Zeichen begrenzt (400 "Maximum external_id
+ * string length is 32", live verifiziert 2026-08-12).
+ *
+ * Eine Shopify-Order-GID passt NICHT: "gid://shopify/Order/" sind allein 20
+ * Zeichen, echte Order-IDs haben 13-14 Stellen — zusammen 33-34. Jede reale
+ * Bestellung haette 400 bekommen. Die frueheren Proben lagen mit 10-stelligen
+ * Wunsch-IDs zufaellig knapp darunter und haben das verdeckt.
+ */
+const MAX_EXTERNAL_ID = 32;
+
+/**
+ * Baut die external_id fuer Printful aus der Order-Id.
+ *
+ * Aus einer Shopify-GID wird die nackte numerische Id — deterministisch, damit
+ * eine Wiederholung dieselbe Id erzeugt und die Idempotenz greift.
+ *
+ * NICHT GEKUERZT, wenn es trotzdem zu lang ist. Eine Kuerzung koennte zwei
+ * verschiedene Orders auf dieselbe external_id abbilden — und dann gaelte die
+ * zweite als "existiert bereits" und wuerde NIE produziert. Eine bezahlte
+ * Bestellung, die still verschwindet, ist das Schlimmste, was dieser Pfad tun
+ * kann. Also lieber laut scheitern.
+ */
+export function printfulExternalId(orderId: string): string {
+  const gid = orderId.match(/^gid:\/\/shopify\/Order\/(\d+)$/);
+  const candidate = gid ? gid[1] : orderId;
+  if (candidate.length > MAX_EXTERNAL_ID) {
+    throw new Error(
+      `[printful] external_id "${candidate}" ist ${candidate.length} Zeichen lang, ` +
+        `erlaubt sind ${MAX_EXTERNAL_ID}. Nicht gekuerzt: eine Kuerzung koennte zwei ` +
+        'Orders auf dieselbe Id abbilden, und die zweite gaelte dann als bereits ' +
+        'angelegt und wuerde nie produziert.',
+    );
+  }
+  return candidate;
+}
+
 export interface PrintfulProviderOptions {
   /**
    * Printful store this instance talks to. Part of the CONSTRUCTOR signature, not
@@ -103,7 +172,11 @@ export class PrintfulProvider implements FulfillmentProvider {
     const text = await res.text();
     if (!res.ok) {
       // The body carries Printful's reason and does not contain the token.
-      throw new Error(`[printful] ${init.method ?? 'GET'} ${path} → ${res.status} ${text}`);
+      throw new PrintfulHttpError(
+        `[printful] ${init.method ?? 'GET'} ${path} → ${res.status} ${text}`,
+        res.status,
+        text,
+      );
     }
     return (text ? JSON.parse(text) : null) as T;
   }
@@ -314,8 +387,10 @@ export class PrintfulProvider implements FulfillmentProvider {
       };
     }));
 
+    const externalId = printfulExternalId(order.id);
+
     const body = {
-      external_id: order.id,
+      external_id: externalId,
       recipient: {
         name: `${order.customer.firstName} ${order.customer.lastName}`.trim(),
         email: order.customer.email,
@@ -329,16 +404,119 @@ export class PrintfulProvider implements FulfillmentProvider {
       order_items: items,
     };
 
-    const created = await this.request<{ data: { id: number | string; status?: string } }>(
-      '/v2/orders',
-      { method: 'POST', body: JSON.stringify(body) },
-    );
+    // IDEMPOTENZ. Printfuls external_id ist eindeutig pro Store — und die
+    // Eindeutigkeit UEBERLEBT DIE LOESCHUNG (verifiziert 2026-08-12). Der Konflikt
+    // IST damit die Idempotenz, aber die API meldet ihn als 400.
+    //
+    // Warum das zaehlt: external_id ist die Shopify-Order-GID. Verlorene Antworten
+    // sind bei Netzwerken der Normalfall — geht createOrder durch und die Antwort
+    // verloren, liefert Shopify den Webhook erneut zu. Ohne diese Behandlung
+    // antwortet die Route mit 500, Shopify liefert wieder, und der Fehler kann
+    // NIE aufhoeren: die Order existiert ja. Eine Endlosschleife, die genau dann
+    // beginnt, wenn zum ersten Mal echtes Geld fliesst.
+    let created: { data: { id: number | string; status?: string } };
+    try {
+      created = await this.request<{ data: { id: number | string; status?: string } }>(
+        '/v2/orders',
+        { method: 'POST', body: JSON.stringify(body) },
+      );
+    } catch (e) {
+      if (!isExternalIdConflict(e)) throw e;
+
+      // NICHT blind Erfolg melden. Der Konflikt sagt nur, dass die ID vergeben
+      // ist — nicht, dass die Order existiert und in welchem Zustand sie ist.
+      // Deshalb nachsehen. Findet der Lookup nichts, ist der Zustand
+      // widerspruechlich (ID vergeben, Order nicht auffindbar) und das MUSS laut
+      // sein, statt als Erfolg durchzugehen.
+      const existing = await this.getOrderByExternalId(externalId);
+      if (!existing) {
+        throw new Error(
+          `[printful] external_id "${externalId}" ist vergeben, aber keine Order dazu ` +
+            'auffindbar. Kein Erfolg gemeldet — der Zustand ist widerspruechlich. ' +
+            'Moeglich ist eine geloeschte Order: Printful gibt die external_id nach ' +
+            'dem Loeschen NICHT frei.',
+        );
+      }
+      const mapped = STATUS_MAP[existing.status.toLowerCase()];
+      if (!mapped) {
+        // Unbekanntes Vokabular ist ein echtes Signal, kein Randfall — hier
+        // "existiert also schon" zu melden hiesse, einen Zustand zu bestaetigen,
+        // den wir nicht lesen koennen.
+        throw new Error(
+          `[printful] Order zu external_id "${externalId}" existiert (${existing.id}), ` +
+            `hat aber den unbekannten Status "${existing.status}".`,
+        );
+      }
+
+      // WARUM IMMER 'created' UND NICHT DER ABGEBILDETE STATUS:
+      //
+      // FulfillmentResponse.status kennt nur created | queued | failed. Der
+      // feinere Lebenszyklus (in_production, shipped, …) gehoert zu getStatus(),
+      // nicht zur Anlage-Antwort.
+      //
+      // Die Nachbedingung von createOrder ist "eine Order mit dieser external_id
+      // existiert beim Provider". Sie ist erfuellt — auch wenn die Order inzwischen
+      // storniert wurde. 'failed' zu melden waere hier schaedlich: die Route
+      // antwortete mit 500, Shopify liefert erneut zu, und ein erneuter Versuch
+      // kann eine stornierte Order nicht wiederbeleben. Genau die Endlosschleife,
+      // gegen die dieser ganze Pfad gebaut ist, nur eine Etage tiefer.
+      //
+      // Stornierte oder gescheiterte Bestandsorders sind trotzdem ein Fall fuer
+      // Menschen — deshalb laut ins Log, statt still durchzuwinken.
+      if (mapped === 'cancelled' || mapped === 'failed') {
+        console.error(
+          `[printful] ACHTUNG: Order zu external_id "${externalId}" existiert bereits ` +
+            `(${existing.id}), ist aber "${existing.status}". Der Dispatch gilt als ` +
+            'erledigt — ein erneuter Versuch kann daran nichts aendern. Diese ' +
+            'Bestellung braucht eine menschliche Entscheidung.',
+        );
+      }
+
+      return {
+        providerOrderId: existing.id,
+        status: 'created',
+        raw: {
+          idempotent: true,
+          externalId,
+          printfulStatus: existing.status,
+          mappedLifecycle: mapped,
+        },
+      };
+    }
 
     return {
       providerOrderId: String(created.data.id),
       status: 'created',
       raw: created,
     };
+  }
+
+  /**
+   * Order per external_id holen.
+   *
+   * ✅ VERIFIZIERT am 2026-08-12 gegen die Live-API: `GET /v2/orders/@{external_id}`
+   * liefert das volle Order-Objekt. Auch mit einer Shopify-GID als external_id —
+   * also mit Schraegstrichen und Doppelpunkt — funktioniert es, sowohl roh als
+   * auch prozentkodiert. Kodiert ist trotzdem richtig: eine external_id, die
+   * zufaellig wie ein Pfadsegment aussieht, darf den Pfad nicht veraendern.
+   *
+   * Die Alternative `GET /v2/orders?external_id=` existiert ebenfalls und liefert
+   * eine Liste. Der @-Pfad ist vorzuziehen, weil er ein Objekt liefert: bei einer
+   * Liste muesste der Aufrufer entscheiden, was "mehr als ein Treffer" bedeutet,
+   * und die einzige richtige Antwort darauf waere ein Fehler.
+   */
+  async getOrderByExternalId(
+    externalId: string,
+  ): Promise<{ id: string; status: string } | null> {
+    try {
+      const res = await this.request<{ data: { id: number | string; status?: string } }>(
+        `/v2/orders/@${encodeURIComponent(externalId)}`,
+      );
+      return { id: String(res.data.id), status: res.data.status ?? '' };
+    } catch (e) {
+      if (e instanceof PrintfulHttpError && e.status === 404) return null;
+      throw e;
+    }
   }
 
   async cancelOrder(providerOrderId: string): Promise<void> {

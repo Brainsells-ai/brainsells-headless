@@ -66,6 +66,8 @@ const API = 'https://api.printful.com';
 // Die Route gibt darauf heute 500 zurueck und provoziert die naechste
 // Zustellung. Der Konflikt IST die Idempotenz, aber er wird als Fehler behandelt
 // statt als "existiert bereits". Eigener Vorgang.
+// 13-stellig wie eine echte Shopify-Order-Id — Printful begrenzt external_id auf
+// 32 Zeichen, und printfulExternalId() macht aus der GID die nackte Zahl.
 const RUN_ID = process.env.DURCHSTICH_RUN_ID ?? String(Math.floor(Date.now() / 1000));
 
 const VARIANT_A = 58715312455840; // testbrand-a
@@ -90,8 +92,8 @@ function payload(
   printFileUrl: string,
 ): ShopifyOrderPayload {
   return {
-    id: `${RUN_ID}-${items[0].id}`,
-    admin_graphql_api_id: `gid://shopify/Order/${RUN_ID}-${items[0].id}`,
+    id: `${RUN_ID}${items[0].id}`,
+    admin_graphql_api_id: `gid://shopify/Order/${RUN_ID}${items[0].id}`,
     name,
     currency: 'EUR',
     total_price: '29.00',
