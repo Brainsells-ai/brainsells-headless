@@ -116,8 +116,8 @@ export async function normalizeShopifyOrder(
     }
     const gid = li.admin_graphql_api_id ?? variantGid(li.variant_id);
 
-    const catalogVariantId = await opts.resolveVariant(gid);
-    if (catalogVariantId === null) {
+    const mapping = await opts.resolveVariant(gid);
+    if (mapping === null) {
       // DER Hard-Fail dieses Sprints. Bewusst mit der Variante im Text, damit die
       // Behebung (Mapping-Metafield setzen) ohne Nachforschung möglich ist.
       throw new OrderNotFulfillable(
@@ -138,16 +138,21 @@ export async function normalizeShopifyOrder(
       productHandle: String(li.product_id ?? ''),
       quantity,
       metadata: {
-        catalogVariantId,
+        // Opake ID, bewusst als String durchgereicht. Die Umwandlung in das
+        // Zahlenformat, das Printful erwartet, passiert an der Provider-Grenze.
+        catalogVariantId: mapping.catalogVariantId,
         shopifyVariantGid: gid,
         placement: prop(li, 'placement') ?? opts.defaultPlacement,
         // Druckdatei-URL kommt als Line-Item-Property aus dem Cart (Modell B:
         // extern gehostet, Provider besitzt das Produkt nicht). Fehlt sie, faellt
         // es beim Provider auf — createOrder verlangt sie und wirft.
         ...(prop(li, 'printFileUrl') ? { printFileUrl: prop(li, 'printFileUrl') } : {}),
-        ...(prop(li, 'fulfillmentProvider')
-          ? { fulfillmentProvider: prop(li, 'fulfillmentProvider') }
-          : {}),
+        // Provider AUSSCHLIESSLICH aus dem Varianten-Metafield. Es gab hier einen
+        // Pfad ueber eine Line-Item-Property — ersatzlos gestrichen: die kommt aus
+        // dem Browser, und ein daraus ableitbarer Provider waere eine
+        // Angriffsflaeche (Bestellungen an einen fremden Provider routbar).
+        // Fehlt der Wert, greift der Brand-Default im Router.
+        ...(mapping.provider ? { fulfillmentProvider: mapping.provider } : {}),
       },
     });
   }

@@ -21,7 +21,7 @@ import { config as loadEnv } from 'dotenv';
 loadEnv({ path: path.resolve(__dirname, '..', '.env.local') });
 
 import { brandConfig } from '@/lib/brand.config';
-import { VARIANT_MAPPING_KEY } from '@/lib/fulfillment/variant-mapping';
+import { VARIANT_MAPPING_KEY, VARIANT_PROVIDER_KEY } from '@/lib/fulfillment/variant-mapping';
 import { shopDomainOf, type ShopifyStore } from '@/lib/shopify-admin';
 import { requireStoreArg, announceWriteTarget } from './lib/store-arg';
 
@@ -65,50 +65,82 @@ async function main(): Promise<void> {
   const domain = shopDomainOf(resolved.store);
   const namespace = brandConfig.fulfillment.metafieldNamespace;
 
-  const definition = {
-    name: 'Provider catalog variant id',
-    namespace,
-    key: VARIANT_MAPPING_KEY,
-    description:
-      'Katalog-Varianten-ID beim Fulfillment-Provider. Wird bei der Produktanlage ' +
-      'geschrieben; ohne sie ist die Variante nicht erfüllbar (Hard Fail).',
-    type: 'number_integer',
-    ownerType: 'PRODUCTVARIANT',
-  };
+  // ZWEI Definitionen, beide ownerType PRODUCTVARIANT im Namespace aus brand.config.
+  //
+  // Zum Typ: bewusst single_line_text_field, NICHT number_integer. Printfuls
+  // catalog_variant_id ist heute numerisch, aber der Key ist provider-agnostisch
+  // benannt und ein anderer POD-Anbieter kann alphanumerisch zaehlen. Die ID wird
+  // nie berechnet, nur uebergeben und verglichen. number_integer kauft nur eine
+  // Schreib-Validierung, die wir ohnehin im Code haben — und die gehoert
+  // provider-spezifisch an die Provider-Grenze, nicht in die agnostische Schicht.
+  // Ein Typwechsel spaeter kostet Definition-loeschen-und-neu-schreiben.
+  const definitions = [
+    {
+      name: 'Provider catalog variant id',
+      namespace,
+      key: VARIANT_MAPPING_KEY,
+      description:
+        'Katalog-Varianten-ID beim Fulfillment-Provider (opak, nicht zwingend numerisch). ' +
+        'Wird bei der Produktanlage geschrieben; ohne sie ist die Variante nicht erfuellbar (Hard Fail).',
+      type: 'single_line_text_field',
+      ownerType: 'PRODUCTVARIANT',
+    },
+    {
+      name: 'Fulfillment provider',
+      namespace,
+      key: VARIANT_PROVIDER_KEY,
+      description:
+        'Welcher Provider diese Variante erfuellt ("printful", "mock", …). Traegt die ' +
+        'Variante selbst, statt es aus dem Store zu schliessen — ein Store kann gemischt sein.',
+      type: 'single_line_text_field',
+      ownerType: 'PRODUCTVARIANT',
+    },
+  ];
 
   console.log(`Store:     ${domain}`);
   console.log(`Namespace: ${namespace}`);
-  console.log(`Key:       ${VARIANT_MAPPING_KEY}  (ownerType PRODUCTVARIANT)`);
+  for (const d of definitions) {
+    console.log(`Key:       ${d.key}  (${d.type}, ownerType ${d.ownerType})`);
+  }
 
   if (dry) {
     console.log('\n--dry: nichts geschrieben.');
-    console.log(JSON.stringify(definition, null, 2));
+    console.log(JSON.stringify(definitions, null, 2));
     return;
   }
 
   announceWriteTarget(resolved);
   const token = await adminToken(resolved.store);
-  const res = await fetch(`https://${domain}/admin/api/${ADMIN_API_VERSION}/graphql.json`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
-    body: JSON.stringify({ query: CREATE_MUTATION, variables: { definition } }),
-  });
-  const json = (await res.json()) as {
-    data?: { metafieldDefinitionCreate: { createdDefinition: unknown; userErrors: { message: string; code: string | null }[] } };
-    errors?: unknown;
-  };
 
-  if (json.errors) throw new Error(`GraphQL errors: ${JSON.stringify(json.errors)}`);
-  const out = json.data?.metafieldDefinitionCreate;
-  const taken = out?.userErrors?.find((e) => e.code === 'TAKEN');
-  if (taken) {
-    console.log('\n= existiert bereits — nichts zu tun.');
-    return;
+  for (const definition of definitions) {
+    const res = await fetch(`https://${domain}/admin/api/${ADMIN_API_VERSION}/graphql.json`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
+      body: JSON.stringify({ query: CREATE_MUTATION, variables: { definition } }),
+    });
+    const json = (await res.json()) as {
+      data?: {
+        metafieldDefinitionCreate: {
+          createdDefinition: unknown;
+          userErrors: { message: string; code: string | null }[];
+        };
+      };
+      errors?: unknown;
+    };
+
+    if (json.errors) {
+      throw new Error(`GraphQL errors (${definition.key}): ${JSON.stringify(json.errors)}`);
+    }
+    const out = json.data?.metafieldDefinitionCreate;
+    if (out?.userErrors?.find((e) => e.code === 'TAKEN')) {
+      console.log(`  = ${definition.key}: existiert bereits — nichts zu tun.`);
+      continue;
+    }
+    if (out?.userErrors?.length) {
+      throw new Error(`userErrors (${definition.key}): ${JSON.stringify(out.userErrors)}`);
+    }
+    console.log(`  ✓ ${definition.key}: angelegt — ${JSON.stringify(out?.createdDefinition)}`);
   }
-  if (out?.userErrors?.length) {
-    throw new Error(`userErrors: ${JSON.stringify(out.userErrors)}`);
-  }
-  console.log('\n✓ angelegt:', JSON.stringify(out?.createdDefinition));
 }
 
 main().catch((err) => {

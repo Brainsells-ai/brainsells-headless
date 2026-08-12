@@ -155,7 +155,22 @@ describe('PrintfulProvider specifics', () => {
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  it('rejects a product id passed where a catalog VARIANT id is required', async () => {
+  // EHRLICHKEITS-KORREKTUR: Dieser Test hiess "rejects a product id passed where a
+  // catalog VARIANT id is required" und uebergab '71' als String — er war gruen,
+  // weil der TYP nicht passte (string statt number), nicht weil ein Produkt-ID
+  // erkannt worden waere. Seit die ID bewusst ein opaker String ist, faellt diese
+  // zufaellige Absicherung weg, und der Test prueft, was tatsaechlich pruefbar ist.
+  //
+  // Nicht pruefbar bleibt: Produkt-ID vs. Varianten-ID. Beide sind positive
+  // Ganzzahlen; kein Code kann sie unterscheiden. Dagegen schuetzen nur die
+  // Benennung (catalogVariantId) und Printfuls eigene Fehlermeldung beim Anlegen.
+  it.each([
+    ['leerer String', ''],
+    ['nicht numerisch', 'abc'],
+    ['null-Wert', '0'],
+    ['negativ', '-5'],
+    ['Dezimalzahl', '40.25'],
+  ])('weist eine unbrauchbare catalogVariantId zurueck (%s)', async (_label, value) => {
     const provider = new PrintfulProvider();
     await expect(
       provider.createOrder(
@@ -164,16 +179,15 @@ describe('PrintfulProvider specifics', () => {
             sku: 'SKU-1',
             productHandle: 'h',
             quantity: 1,
-            // A string here stands in for "someone passed the wrong id shape".
             metadata: {
-              catalogVariantId: '71',
+              catalogVariantId: value,
               placement: 'front_large',
               printFileUrl: 'https://example.com/f.png',
             },
           },
         ]),
       ),
-    ).rejects.toThrow(/CATALOG VARIANT id/);
+    ).rejects.toThrow(/catalogVariantId/);
   });
 
   it('verifyWebhook stays closed while PRINTFUL_WEBHOOK_SECRET is unset', () => {
@@ -225,7 +239,7 @@ describe.each(SUBJECTS)('normalize → $name', ({ make }) => {
           },
         ],
       },
-      { resolveVariant: async () => 4025, defaultPlacement: 'front_large' },
+      { resolveVariant: async () => ({ catalogVariantId: '4025', provider: null }), defaultPlacement: 'front_large' },
     );
 
     // Printful geht über das Netz — Antwort stubben, damit die Nahtstelle und nicht
