@@ -12,7 +12,7 @@
 // Position aus der Produktion fallen lassen, ohne dass es irgendwo auffällt.
 
 import type { NormalizedOrder, NormalizedOrderItem } from './types';
-import type { VariantResolver } from './variant-mapping';
+import { VARIANT_PLACEMENT_KEY, type VariantResolver } from './variant-mapping';
 
 /** Die Felder des Shopify-Order-Payloads, die wir tatsächlich lesen. */
 export interface ShopifyOrderPayload {
@@ -67,12 +67,14 @@ function prop(
 export interface NormalizeOptions {
   /** Auflösung Shopify-Variante → Provider-Katalog-Variante. */
   resolveVariant: VariantResolver;
-  /**
-   * Platzierung, wenn die Position keine eigene mitbringt. Kein Default im Code:
-   * ein falsches Placement druckt an der falschen Stelle, und "front" ist für
-   * neue DTG-Produkte nicht mehr die richtige Wahl (front_large, 15x18).
-   */
-  defaultPlacement: string;
+  // KEIN defaultPlacement. Es gab hier eines, und die Route füllte es mit
+  // 'front_large' — einem DTG-Shirt-Placement, das für jedes Poster still falsch
+  // war. Ein Placement ist produkttyp-spezifisch; ein brandweiter Default kann
+  // nicht für beide stimmen, und der Fehler wäre erst beim Provider aufgefallen.
+  //
+  // Die OPTION ist entfernt, nicht nur ihr Wert: solange sie existiert, ist ein
+  // Default ausdrückbar, und irgendwer drückt ihn aus. Das Placement kommt aus
+  // dem Varianten-Metafield; fehlt es, ist die Position nicht erfüllbar.
 }
 
 export async function normalizeShopifyOrder(
@@ -126,6 +128,18 @@ export async function normalizeShopifyOrder(
       );
     }
 
+    if (mapping.placement === null) {
+      // Getrennt vom Mapping-Hard-Fail oben, damit die Meldung auf das richtige
+      // Metafield zeigt. Ein gemeinsamer Text hätte bei jeder der beiden Ursachen
+      // zur falschen Behebung geführt.
+      throw new OrderNotFulfillable(
+        `Order ${reference}, Position "${label}": Variante ${gid} trägt kein ` +
+          `Placement (Varianten-Metafield "${VARIANT_PLACEMENT_KEY}" im ` +
+          `Fulfillment-Namespace). Es gibt bewusst keinen Default — ein Placement ` +
+          `ist produkttypspezifisch. Order wird NICHT teilweise ausgeführt.`,
+      );
+    }
+
     const quantity = li.quantity ?? 0;
     if (!Number.isInteger(quantity) || quantity < 1) {
       throw new OrderNotFulfillable(
@@ -142,7 +156,11 @@ export async function normalizeShopifyOrder(
         // Zahlenformat, das Printful erwartet, passiert an der Provider-Grenze.
         catalogVariantId: mapping.catalogVariantId,
         shopifyVariantGid: gid,
-        placement: prop(li, 'placement') ?? opts.defaultPlacement,
+        // AUSSCHLIESSLICH aus dem Varianten-Metafield. Es gab hier einen Pfad über
+        // eine Line-Item-Property — dieselbe Angriffsfläche wie beim Provider: die
+        // Property kommt aus dem Browser, und eine frei wählbare Druckposition
+        // wäre browser-gesteuerte Produktionseingabe. Kein Override, kein Fallback.
+        placement: mapping.placement,
         // Druckdatei-URL kommt als Line-Item-Property aus dem Cart (Modell B:
         // extern gehostet, Provider besitzt das Produkt nicht). Fehlt sie, faellt
         // es beim Provider auf — createOrder verlangt sie und wirft.

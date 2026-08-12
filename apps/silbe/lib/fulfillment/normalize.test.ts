@@ -6,7 +6,7 @@ import type { VariantResolver } from './variant-mapping';
 // injiziert), damit genau dieser Pfad ohne Store und ohne Netz prüfbar ist — er
 // soll nicht erst am echten Provider auffallen.
 
-const ok: VariantResolver = vi.fn(async () => ({ catalogVariantId: '4025', provider: null }));
+const ok: VariantResolver = vi.fn(async () => ({ catalogVariantId: '4025', provider: null, placement: 'front_large' }));
 const unknown: VariantResolver = vi.fn(async () => null);
 
 function payload(over: Partial<ShopifyOrderPayload> = {}): ShopifyOrderPayload {
@@ -30,7 +30,7 @@ function payload(over: Partial<ShopifyOrderPayload> = {}): ShopifyOrderPayload {
   };
 }
 
-const opts = (resolve: VariantResolver = ok) => ({ resolveVariant: resolve, defaultPlacement: 'front_large' });
+const opts = (resolve: VariantResolver = ok) => ({ resolveVariant: resolve });
 
 describe('normalizeShopifyOrder — Happy Path', () => {
   it('bildet eine vollständige Order ab', async () => {
@@ -51,12 +51,20 @@ describe('normalizeShopifyOrder — Happy Path', () => {
   });
 
   it('baut die Varianten-GID, wenn nur eine numerische variant_id kommt', async () => {
-    const spy: VariantResolver = vi.fn(async () => ({ catalogVariantId: '4025', provider: null }));
+    const spy: VariantResolver = vi.fn(async () => ({ catalogVariantId: '4025', provider: null, placement: 'front_large' }));
     await normalizeShopifyOrder(payload(), opts(spy));
     expect(spy).toHaveBeenCalledWith('gid://shopify/ProductVariant/999');
   });
 
-  it('nimmt Placement und Druckdatei aus Line-Item-Properties', async () => {
+  it('ignoriert ein Placement aus Line-Item-Properties — das Mapping gewinnt', async () => {
+    // Dieser Test behauptete bis 2026-08-12 das Gegenteil: das Cart-Placement
+    // gewinnt. Der Pfad ist ersatzlos entfernt, aus demselben Grund wie beim
+    // Provider — Properties kommen aus dem BROWSER, und eine frei waehlbare
+    // Druckposition waere browser-gesteuerte Produktionseingabe.
+    //
+    // Die Druckdatei-URL bleibt bewusst eine Property: sie ist in Modell B extern
+    // gehostet und gehoert zur Bestellung, nicht zur Variante. Der Unterschied ist
+    // nicht "Property gut/boese", sondern ob der Wert die PRODUKTION steuert.
     const o = await normalizeShopifyOrder(
       payload({
         line_items: [
@@ -71,15 +79,32 @@ describe('normalizeShopifyOrder — Happy Path', () => {
       }),
       opts(),
     );
-    expect(o.items[0].metadata.placement).toBe('back');
+    expect(o.items[0].metadata.placement).toBe('front_large');
     expect(o.items[0].metadata.printFileUrl).toBe('https://example.com/f.png');
     expect(o.items[0].quantity).toBe(2);
+  });
+
+  it('scheitert hart, wenn die Variante kein Placement traegt', async () => {
+    const ohnePlacement: VariantResolver = vi.fn(async () => ({
+      catalogVariantId: '4025',
+      provider: null,
+      placement: null,
+    }));
+    await expect(normalizeShopifyOrder(payload(), opts(ohnePlacement))).rejects.toThrow(
+      OrderNotFulfillable,
+    );
+    // Die Meldung muss auf das PLACEMENT zeigen, nicht auf das Mapping: ein
+    // gemeinsamer Text haette bei beiden Ursachen zur falschen Behebung gefuehrt.
+    await expect(normalizeShopifyOrder(payload(), opts(ohnePlacement))).rejects.toThrow(
+      /provider_placement/,
+    );
   });
 
   it('nimmt den Provider aus dem Varianten-Mapping, nicht aus dem Cart', async () => {
     const withProvider: VariantResolver = vi.fn(async () => ({
       catalogVariantId: '4025',
       provider: 'mock',
+      placement: 'front_large',
     }));
     const o = await normalizeShopifyOrder(
       payload({
@@ -129,7 +154,7 @@ describe('normalizeShopifyOrder — HARD FAIL, kein Skip, kein Default', () => {
     // Ein Skip würde eine bezahlte Position still aus der Produktion fallen lassen.
     const resolve: VariantResolver = vi
       .fn<VariantResolver>()
-      .mockResolvedValueOnce({ catalogVariantId: '4025', provider: null })
+      .mockResolvedValueOnce({ catalogVariantId: '4025', provider: null, placement: 'front_large' })
       .mockResolvedValueOnce(null);
     await expect(
       normalizeShopifyOrder(

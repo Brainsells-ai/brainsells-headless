@@ -241,3 +241,78 @@ describe('Provider kommt nicht aus einer Cart-Property', () => {
     expect(src).toMatch(/mapping\.provider/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Kein produkttyp-spezifischer Default fuer Placement und Technik.
+//
+// Es gab zwei davon, beide unsichtbar falsch:
+//   - DEFAULT_PLACEMENT = 'front_large' in der Dispatch-Route (DTG-Shirt)
+//   - technique: ... ?? 'dtg' direkt im Printful-Order-Body (Poster = digital)
+//
+// Beide sind produkttyp-spezifisch. Ein Wert, der fuer das Shirt stimmt, ist
+// fuer das Poster still falsch, und der Fehler zeigt sich erst beim Provider —
+// nicht im eigenen Code. Das Placement kommt aus dem Varianten-Metafield, die
+// Technik aus dem Katalog. Beides ohne Rueckfallwert.
+// ---------------------------------------------------------------------------
+
+describe('Kein Placement- und kein Technik-Default', () => {
+  const NORMALIZE_P = path.resolve(__dirname, 'normalize.ts');
+  const ROUTE_P = path.resolve(
+    __dirname,
+    '..',
+    '..',
+    'app',
+    'api',
+    'webhooks',
+    'fulfillment-dispatch',
+    'route.ts',
+  );
+  const PRINTFUL_P = path.resolve(__dirname, 'providers', 'printful.ts');
+
+  it('normalize.ts kennt keine defaultPlacement-Option mehr', () => {
+    // Die OPTION, nicht nur ihr Wert. Solange sie existiert, ist ein Default
+    // ausdrueckbar — und irgendwer drueckt ihn aus.
+    const src = readFileSync(NORMALIZE_P, 'utf8').replace(/\/\/.*$/gm, '');
+    expect(src).not.toMatch(/defaultPlacement/);
+  });
+
+  it('normalize.ts liest das Placement nicht aus Line-Item-Properties', () => {
+    const src = readFileSync(NORMALIZE_P, 'utf8');
+    const viaProp = /prop\([^)]*['"]placement['"]/i.test(src);
+    expect(
+      viaProp,
+      'normalize.ts leitet das Placement wieder aus einer Line-Item-Property ab. ' +
+        'Die kommt aus dem Browser — das waere browser-gesteuerte Produktionseingabe.',
+    ).toBe(false);
+  });
+
+  it('das Placement wird weiterhin aus dem Mapping gesetzt', () => {
+    // Gegenprobe: die zwei Waechter oben duerfen nicht dadurch gruen werden,
+    // dass gar kein Placement mehr gesetzt wird.
+    //
+    // Auf die ZUWEISUNG geprueft, nicht auf das blosse Vorkommen von
+    // `mapping.placement`. Die erste Fassung tat das und war gruen, obwohl das
+    // Placement durch ein Literal ersetzt war — `mapping.placement` steht auch im
+    // Null-Check darueber. Ein Waechter, der aus einem anderen Grund gruen ist als
+    // dem, den sein Name behauptet, ist kein Waechter.
+    expect(readFileSync(NORMALIZE_P, 'utf8')).toMatch(/placement:\s*mapping\.placement/);
+  });
+
+  it('die Dispatch-Route setzt keinen Placement-Default', () => {
+    const src = readFileSync(ROUTE_P, 'utf8').replace(/\/\/.*$/gm, '');
+    expect(src).not.toMatch(/DEFAULT_PLACEMENT|defaultPlacement|front_large/);
+  });
+
+  it('printful.ts setzt keine Default-Technik im Order-Body', () => {
+    const src = readFileSync(PRINTFUL_P, 'utf8').replace(/\/\/.*$/gm, '');
+    // Ein `technique:` mit ?? oder || dahinter ist ein Rueckfallwert.
+    expect(src).not.toMatch(/technique:\s*[^,\n]*(\?\?|\|\|)/);
+  });
+
+  // Die Gegenprobe zum Technik-Waechter ist bewusst KEIN Textmuster, sondern ein
+  // Verhaltenstest in adapter-contract.test.ts ("Technik kommt aus dem Katalog,
+  // nicht aus einem Default"). Zwei Textfassungen waren hier gruen, obwohl der
+  // Katalog-Call entfernt war: erst traf das Muster die Methodendefinition, dann
+  // den zweiten Aufrufer in fetchPlacementSpec. Wenn ein Waechter zweimal aus dem
+  // falschen Grund gruen ist, ist die Form falsch, nicht das Muster.
+});

@@ -239,23 +239,98 @@ describe.each(SUBJECTS)('normalize → $name', ({ make }) => {
           },
         ],
       },
-      { resolveVariant: async () => ({ catalogVariantId: '4025', provider: null }), defaultPlacement: 'front_large' },
+      { resolveVariant: async () => ({ catalogVariantId: '4025', provider: null, placement: 'front_large' }) },
     );
 
     // Printful geht über das Netz — Antwort stubben, damit die Nahtstelle und nicht
     // die Konnektivität geprüft wird.
+    //
+    // PFADABHÄNGIG, seit createOrder die Technik aus dem Katalog holt statt sie mit
+    // 'dtg' zu defaulten. Ein Stub, der auf jeden Pfad dieselbe Order-Antwort gibt,
+    // würde die neuen Katalog-Calls verschlucken und den Test grün lassen, ohne dass
+    // die Technik je geprüft wäre — genau die Sorte grün, die nichts behauptet.
+    // Die Antworten spiegeln echte Formen (Variante 4025 → Produkt 71, dtg).
+    const json = (body: unknown) =>
+      new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () =>
-        new Response(JSON.stringify({ data: { id: 170000001, status: 'draft' } }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      ),
+      vi.fn(async (url: string) => {
+        if (url.includes('/v2/catalog-variants/')) {
+          return json({ data: { catalog_product_id: 71, placement_dimensions: [] } });
+        }
+        if (url.includes('/v2/catalog-products/')) {
+          return json({
+            data: { placements: [{ placement: 'front_large', technique: 'dtg' }] },
+          });
+        }
+        return json({ data: { id: 170000001, status: 'draft' } });
+      }),
     );
 
     const res = await make().createOrder(normalized);
     expect(res.providerOrderId).toBeTruthy();
     expect(['created', 'queued']).toContain(res.status);
+  });
+
+  it('Technik kommt aus dem Katalog, nicht aus einem Default', async () => {
+    // Der Verhaltenstest, der die Textgegenprobe in guards.test.ts ersetzt.
+    // Ein Textmuster war dort zweimal gruen, obwohl der Katalog-Call fehlte.
+    // Hier kann das nicht passieren: der Katalog sagt "digital" (Poster), und
+    // wenn der alte `?? 'dtg'`-Pfad zurueckkehrt, steht 'dtg' im Order-Body.
+    const normalized = await normalizeShopifyOrder(
+      {
+        id: 124,
+        admin_graphql_api_id: 'gid://shopify/Order/124',
+        name: '#1043',
+        currency: 'EUR',
+        total_price: '29.00',
+        customer: { first_name: 'Ada', last_name: 'Lovelace', email: 'ada@example.com' },
+        shipping_address: { address1: 'Teststrasse 1', city: 'Wien', zip: '1010', country_code: 'AT' },
+        line_items: [
+          {
+            id: 1,
+            sku: 'TBB-POSTER-A2',
+            quantity: 1,
+            variant_id: 999,
+            properties: [{ name: 'printFileUrl', value: 'https://example.com/poster.png' }],
+          },
+        ],
+      },
+      {
+        resolveVariant: async () => ({
+          catalogVariantId: '19526',
+          provider: null,
+          placement: 'default',
+        }),
+      },
+    );
+
+    const calls: Array<{ url: string; body?: string }> = [];
+    const json = (b: unknown) =>
+      new Response(JSON.stringify(b), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push({ url, body: typeof init?.body === 'string' ? init.body : undefined });
+        if (url.includes('/v2/catalog-variants/')) {
+          return json({ data: { catalog_product_id: 171, placement_dimensions: [] } });
+        }
+        if (url.includes('/v2/catalog-products/')) {
+          return json({ data: { placements: [{ placement: 'default', technique: 'digital' }] } });
+        }
+        return json({ data: { id: 170000002, status: 'draft' } });
+      }),
+    );
+
+    await new PrintfulProvider().createOrder(normalized);
+
+    const orderCall = calls.find((c) => c.url.includes('/v2/orders') && c.body);
+    expect(orderCall, 'kein POST auf /v2/orders').toBeTruthy();
+    const sent = JSON.parse(orderCall!.body!);
+    expect(sent.order_items[0].placements[0].technique).toBe('digital');
+    expect(JSON.stringify(sent)).not.toContain('dtg');
   });
 });
