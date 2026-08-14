@@ -350,7 +350,7 @@ describe('PrintfulProvider — external_id-Idempotenz', () => {
     // und die eigene wuerde NIE produziert — ein stiller Nicht-Druck.
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (url: string, init?: RequestInit) => {
+      vi.fn(async (url: string) => {
         if (url.includes('/v2/catalog-variants/')) {
           return new Response(JSON.stringify({ data: { catalog_product_id: 171 } }), { status: 200 });
         }
