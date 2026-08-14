@@ -35,11 +35,36 @@
 
 name: stape-keepalive
 
+# ============================================================================
+# ABGESCHALTET am 2026-08-12. Der Cron ist auskommentiert, NICHT geloescht —
+# die Datei bleibt als Beleg und als Bauanleitung, falls der Monitor-Teil
+# spaeter wieder gebraucht wird. `workflow_dispatch` bleibt, damit ein Ping von
+# Hand ausloesbar ist.
+#
+# WARUM: die oben als UNVERIFIED markierte Annahme ist WIDERLEGT. /healthz
+# zaehlt NICHT auf Stapes Inaktivitaets-Uhr. Beleg: Reaktivierung 2026-07-27,
+# 15 lueckenlos gruene Pings, Container trotzdem tot ab Tag 15 (2026-08-11),
+# Grund laut Dashboard "did not receive requests for more than two weeks".
+# Die Uhr lief von der Reaktivierung ununterbrochen durch.
+#
+# Der Header oben hat genau das vorhergesagt ("if it does NOT, the container
+# would still sleep ... THIS WORKFLOW FAILS LOUD"). Die Vorhersage ist
+# eingetreten und der Monitor hat getragen — der rote Lauf hat den Ausfall
+# sichtbar gemacht, statt ihn zu verschlucken.
+#
+# NICHT auf /g/collect umgestellt, obwohl das zaehlen wuerde: Stapes ToS
+# definieren "Anomalous Low-Usage Containers" (< 4.000 Requests/30 Tage UND
+# maschinengenerierte Muster / monitoring probes) als Abschaltgrund. Ein
+# Container, der nur durch einen Ping lebt, IST der beschriebene Fall. Ein
+# funktionierender Keepalive waere damit vertraglich kontraproduktiv gewesen.
+#
+# Die Konsequenz ist keine technische, sondern eine Gate-Entscheidung:
+# Free -> Paid gehoert vor den ersten echten Besucher. Siehe
+# docs/verification-runbook.md §9.1 und setup-runbook Befund #11.
+# ============================================================================
 on:
-  schedule:
-    # 04:17 UTC daily — a fixed, off-peak, non-midnight slot (GitHub delays
-    # heavily-scheduled times like :00). Cron on the default branch only.
-    - cron: '17 4 * * *'
+  # schedule:
+  #   - cron: '17 4 * * *'
   workflow_dispatch: {}
 
 # Least privilege: this job only makes one outbound HTTP request.

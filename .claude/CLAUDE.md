@@ -62,6 +62,28 @@ These are not stylistic preferences. Many are legal/UWG constraints.
    only — never AI-rendered text or AI-rendered hands. See `docs/asset-mapping.md`.
 8. **Performance budgets.** Lighthouse Performance ≥ 90 mobile, A11y ≥ 95,
    LCP ≤ 2.0s mobile, CLS < 0.05. Pinned in `apps/silbe/lighthouse-budget.json`.
+9. **Every new guard must be PROVEN RED.** A structural guard, a hard-fail path,
+   any test written to prevent a regression: introduce the violation on purpose,
+   watch the test fail, then restore. A guard that has never been red is an
+   assumption with a green checkmark.
+
+   This is a rule, not a habit, because it keeps catching things. On 2026-08-12
+   two freshly written guards were green *for the wrong reason* — one matched a
+   null-check instead of the assignment it claimed to watch, the other matched a
+   method definition instead of the call. Both were found by this procedure and
+   by nothing else.
+
+   **Check the LINKAGE, not the occurrence.** `expect(src).toMatch(/mapping.placement/)`
+   passes on any mention anywhere in the file. `/placement:\s*mapping\.placement/`
+   checks that the value is actually assigned. When a text pattern is green twice
+   for the wrong reason, the *form* is wrong, not the pattern — switch to a
+   behavioural test.
+
+   Related failure, same family: a test can be green for a reason other than the
+   one its name claims. Six instances so far, including one **live** verification
+   that passed on a circumstance that would not hold in production (a 30-character
+   id where real ones are 33). A green probe is only evidence for the exact
+   conditions it ran under.
 
 ## Repo Structure
 
