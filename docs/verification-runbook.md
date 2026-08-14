@@ -583,6 +583,39 @@ Zähl-Wirksamkeit empirisch. Falls `/healthz` NICHT zählt → **Plan B:** minim
 Traffic-Peak über das Free-Limit killt das Tracking **permanent** (kein Auto-Reset im
 Free-Tier) — der Keepalive schützt davor NICHT.
 
+> ### ⛔ NACHTRAG 2026-08-12 — der Keepalive ist widerlegt und abgeschaltet
+>
+> Dieser Abschnitt beschrieb den täglichen `/healthz`-Ping als Schutz gegen den
+> Inaktivitäts-Disable. **Das trifft nicht zu.**
+>
+> | | |
+> |---|---|
+> | Reaktivierung | 2026-07-27 |
+> | Grüne `/healthz`-Pings | **15, lückenlos** |
+> | Container tot ab | 2026-08-11 (Tag 15) |
+> | Grund laut Dashboard | „did not receive requests for more than two weeks" |
+>
+> Die Uhr lief von der Reaktivierung **ununterbrochen durch** — die Pings haben sie
+> kein einziges Mal berührt. Dass `/healthz` nicht als zählender Request gilt, ist
+> damit zwingend, unabhängig von der Erklärung. Die Mechanik selbst ist von Stape
+> **nicht dokumentiert**; der Effekt ist bewiesen, die Ursache nicht. Der Free-Tier
+> hat kein Request-Log, also ist sie auch nicht direkt prüfbar.
+>
+> **Nicht auf `/g/collect` umgestellt, obwohl das zählen würde.** Stapes ToS
+> definieren *„Anomalous Low-Usage Containers"* — unter 4.000 Requests/30 Tage
+> **und** maschinengenerierte Muster / *monitoring probes* — als Abschaltgrund. Ein
+> Container, der nur durch einen Ping lebt, ist genau der beschriebene Fall. Ein
+> *funktionierender* Keepalive wäre also vertraglich kontraproduktiv gewesen.
+>
+> **Der Monitor bleibt und hat getragen:** der Workflow ist rot geworden, als der
+> Container starb, und hat den Ausfall sichtbar gemacht statt ihn zu verschlucken.
+> Der `schedule:`-Block ist auskommentiert, `workflow_dispatch` erhalten, die Datei
+> als Beleg behalten.
+>
+> **Was daraus folgt, ist kein Fix, sondern ein Gate:** ein Stape-Free-Container ist
+> für eine Brand ohne Traffic keine tragfähige Architektur — nicht wegen eines
+> Fehlers, sondern by design. Free→Paid gehört vor den ersten echten Besucher.
+
 ### 9.2 · Asymmetrische Debug-Instrumentierung — refund nie in DebugView
 
 **purchase** ist DebugView-schaltbar (`GA4_PURCHASE_DEBUG=1` → `_dbg=1` auf dem gtag-Hit).
