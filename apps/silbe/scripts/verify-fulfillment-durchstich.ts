@@ -55,6 +55,19 @@ import { requireStoreArg } from './lib/store-arg';
 
 const API = 'https://api.printful.com';
 
+// FUND (2026-08-12): Printfuls external_id-Eindeutigkeit UEBERLEBT DIE LOESCHUNG.
+// Ein geloeschter Draft blockiert seine external_id weiterhin — ein zweiter Lauf
+// mit denselben Order-IDs scheitert mit 400 "external_id must be unique per
+// store". Deshalb bekommt jeder Lauf eine eigene Kennung.
+//
+// Das ist nicht nur ein Test-Detail. In Produktion ist external_id die
+// Shopify-Order-GID: wenn createOrder durchgeht, die Antwort aber verloren geht,
+// liefert Shopify den Webhook erneut zu — und Printful weist die Wiederholung ab.
+// Die Route gibt darauf heute 500 zurueck und provoziert die naechste
+// Zustellung. Der Konflikt IST die Idempotenz, aber er wird als Fehler behandelt
+// statt als "existiert bereits". Eigener Vorgang.
+const RUN_ID = process.env.DURCHSTICH_RUN_ID ?? String(Math.floor(Date.now() / 1000));
+
 const VARIANT_A = 58715312455840; // testbrand-a
 const VARIANT_B = 58715313209504; // testbrand-b
 
@@ -77,8 +90,8 @@ function payload(
   printFileUrl: string,
 ): ShopifyOrderPayload {
   return {
-    id: 900000 + items[0].id,
-    admin_graphql_api_id: `gid://shopify/Order/${900000 + items[0].id}`,
+    id: `${RUN_ID}-${items[0].id}`,
+    admin_graphql_api_id: `gid://shopify/Order/${RUN_ID}-${items[0].id}`,
     name,
     currency: 'EUR',
     total_price: '29.00',

@@ -27,6 +27,7 @@ loadEnv({ path: path.resolve(__dirname, '..', '.env.local') });
 
 import { brandConfig } from '@/lib/brand.config';
 import {
+  PRODUCT_BRAND_KEY,
   VARIANT_MAPPING_KEY,
   VARIANT_PLACEMENT_KEY,
   VARIANT_PROVIDER_KEY,
@@ -106,6 +107,12 @@ const MUTATION = /* GraphQL */ `
         handle
         vendor
         status
+        metafields(first: 10) {
+          nodes {
+            key
+            value
+          }
+        }
         variants(first: 5) {
           nodes {
             id
@@ -147,6 +154,16 @@ function inputFor(p: TestProduct, namespace: string, existingId?: string) {
     vendor: p.vendor,
     status: 'DRAFT',
     productType: 'Poster',
+    // Marke auf dem PRODUKT. vendor wird zusaetzlich gesetzt, weil Shopify das
+    // Feld ohnehin fuehrt — aber der Fulfillment-Pfad liest es NICHT.
+    metafields: [
+      {
+        namespace,
+        key: PRODUCT_BRAND_KEY,
+        value: p.vendor,
+        type: 'single_line_text_field',
+      },
+    ],
     productOptions: [{ name: 'Format', values: [{ name: SIZE_LABEL }] }],
     variants: [
       {

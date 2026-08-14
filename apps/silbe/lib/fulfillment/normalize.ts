@@ -12,7 +12,7 @@
 // Position aus der Produktion fallen lassen, ohne dass es irgendwo auffällt.
 
 import type { NormalizedOrder, NormalizedOrderItem } from './types';
-import { VARIANT_PLACEMENT_KEY, type VariantResolver } from './variant-mapping';
+import { PRODUCT_BRAND_KEY, VARIANT_PLACEMENT_KEY, type VariantResolver } from './variant-mapping';
 
 /** Die Felder des Shopify-Order-Payloads, die wir tatsächlich lesen. */
 export interface ShopifyOrderPayload {
@@ -108,6 +108,7 @@ export async function normalizeShopifyOrder(
   }
 
   const items: NormalizedOrderItem[] = [];
+  const brands = new Set<string>();
   for (const li of lineItems) {
     const label = li.sku || li.title || String(li.id ?? '?');
 
@@ -139,6 +140,15 @@ export async function normalizeShopifyOrder(
           `ist produkttypspezifisch. Order wird NICHT teilweise ausgeführt.`,
       );
     }
+
+    if (mapping.brand === null) {
+      throw new OrderNotFulfillable(
+        `Order ${reference}, Position "${label}": Produkt der Variante ${gid} traegt ` +
+          `keine Marke (Produkt-Metafield "${PRODUCT_BRAND_KEY}" im Fulfillment-Namespace). ` +
+          `Eine Order ohne Marke ist keinem Absender und keiner Buchhaltung zuzuordnen.`,
+      );
+    }
+    brands.add(mapping.brand);
 
     const quantity = li.quantity ?? 0;
     if (!Number.isInteger(quantity) || quantity < 1) {
@@ -175,11 +185,35 @@ export async function normalizeShopifyOrder(
     });
   }
 
+  // EINE ORDER, EINE MARKE. Kein Aufteilen in zwei Provider-Orders — das waere
+  // eine Geschaeftsentscheidung, die Code nicht treffen soll. Kein stilles
+  // Zusammenfuehren — genau das tat der Router vorher, weil er nach PROVIDER
+  // gruppiert und zwei Marken auf demselben Provider liegen koennen.
+  //
+  // Warum ueberhaupt hart: sobald Marken eigene Rechtstexte, eigene
+  // Bestaetigungen und eigene Absender haben, ist eine Order mit zwei Marken
+  // nicht zuordenbar — weder buchhalterisch noch in der Attribution noch
+  // gegenueber dem Kunden. Im Pool-Modell kann sie regulaer gar nicht entstehen:
+  // getrennte Domains, getrennte Kataloge, getrennte Frontends. Tritt sie
+  // trotzdem auf, ist etwas kaputt (falsches Mapping, falsche Domain,
+  // Manipulation) — und dann ist Stillstand richtig.
+  if (brands.size > 1) {
+    throw new OrderNotFulfillable(
+      `Order ${reference}: Positionen aus ${brands.size} Marken ` +
+        `(${[...brands].sort().join(', ')}). Eine Order gehoert genau EINER Marke. ` +
+        `Sie wird weder aufgeteilt noch zusammengefuehrt — im Pool-Modell kann eine ` +
+        `gemischte Order regulaer nicht entstehen, ihr Auftreten heisst, dass etwas ` +
+        `kaputt ist.`,
+    );
+  }
+  const [brand] = [...brands];
+
   const total = Number(payload.total_price ?? 0);
 
   return {
     id,
     reference,
+    brand,
     customer: {
       email,
       firstName: payload.customer?.first_name ?? '',

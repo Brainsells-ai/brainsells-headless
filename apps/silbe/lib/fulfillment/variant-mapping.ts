@@ -55,6 +55,24 @@ export const VARIANT_PROVIDER_KEY = 'provider';
  */
 export const VARIANT_PLACEMENT_KEY = 'provider_placement';
 
+/**
+ * Zu welcher Marke das PRODUKT gehoert, zu dem diese Variante zaehlt.
+ *
+ * AUF DEM PRODUKT, nicht auf der Variante: eine Marke ist eine Eigenschaft des
+ * Produkts. Varianten-Ebene wuerde "Variante A gehoert Marke X, Variante B
+ * desselben Produkts Marke Y" darstellbar machen — ein Zustand, der nichts
+ * bedeuten kann. Was nicht bedeutbar ist, soll nicht darstellbar sein.
+ *
+ * NICHT `vendor`. Shopifys vendor bedeutet Hersteller/Lieferant; bei
+ * Print-on-Demand ist der semantisch KORREKTE Wert "Printful" — fuer jede Marke
+ * derselbe. Wer das Feld richtig benutzt, laesst alle Marken zu einer
+ * verschmelzen und der Marken-Waechter meldet still Einheitlichkeit. Dazu ist
+ * vendor Freitext: "testbrand-a" und "Testbrand A" waeren zwei Marken und wuerden
+ * eine legitime Order ablehnen. Ein Feld mit fremder Semantik zu ueberladen
+ * heisst, dass sein richtiger Gebrauch unseren Gebrauch bricht.
+ */
+export const PRODUCT_BRAND_KEY = 'brand';
+
 /** Was eine Variante über ihre Erfüllung aussagt. */
 export interface VariantMapping {
   /**
@@ -77,6 +95,13 @@ export interface VariantMapping {
    * ist für das Poster falsch. Deshalb hier Hard Fail statt Rückfallwert.
    */
   placement: string | null;
+  /**
+   * Marke des Produkts, oder `null` → NICHT erfuellbar.
+   *
+   * Wie beim Placement Hard Fail statt Default: eine Order, deren Marke unbekannt
+   * ist, ist keiner Buchhaltung und keinem Absender zuzuordnen.
+   */
+  brand: string | null;
 }
 
 /**
@@ -92,6 +117,7 @@ const QUERY = /* GraphQL */ `
     $idKey: String!
     $providerKey: String!
     $placementKey: String!
+    $brandKey: String!
   ) {
     node(id: $id) {
       ... on ProductVariant {
@@ -104,6 +130,11 @@ const QUERY = /* GraphQL */ `
         }
         placement: metafield(namespace: $ns, key: $placementKey) {
           value
+        }
+        product {
+          brand: metafield(namespace: $ns, key: $brandKey) {
+            value
+          }
         }
       }
     }
@@ -132,6 +163,7 @@ export function makeVariantResolver(store: ShopifyStore): VariantResolver {
         catalogVariantId: { value: string } | null;
         provider: { value: string } | null;
         placement: { value: string } | null;
+        product: { brand: { value: string } | null } | null;
       } | null;
     }>(store, QUERY, {
       id: shopifyVariantGid,
@@ -139,6 +171,7 @@ export function makeVariantResolver(store: ShopifyStore): VariantResolver {
       idKey: VARIANT_MAPPING_KEY,
       providerKey: VARIANT_PROVIDER_KEY,
       placementKey: VARIANT_PLACEMENT_KEY,
+      brandKey: PRODUCT_BRAND_KEY,
     });
 
     const rawId = data.node?.catalogVariantId?.value?.trim();
@@ -146,6 +179,7 @@ export function makeVariantResolver(store: ShopifyStore): VariantResolver {
 
     const rawProvider = data.node?.provider?.value?.trim();
     const rawPlacement = data.node?.placement?.value?.trim();
+    const rawBrand = data.node?.product?.brand?.value?.trim();
     return {
       catalogVariantId: rawId,
       // Leerer String zählt als "nicht gesetzt". Sonst käme ein versehentlich
@@ -153,6 +187,7 @@ export function makeVariantResolver(store: ShopifyStore): VariantResolver {
       // erst an der Allowlist — mit einer Meldung, die auf das falsche Problem zeigt.
       provider: rawProvider ? rawProvider : null,
       placement: rawPlacement ? rawPlacement : null,
+      brand: rawBrand ? rawBrand : null,
     };
   };
 }

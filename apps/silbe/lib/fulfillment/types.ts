@@ -15,6 +15,16 @@ export interface NormalizedOrder {
   id: string;
   /** Human-readable reference, e.g. "#1042". */
   reference: string;
+  /**
+   * Die Marke, zu der ALLE Positionen dieser Order gehoeren.
+   *
+   * Steht auf der Order, nicht auf der Position, weil eine Order mit zwei Marken
+   * kein gueltiger Zustand ist — nicht buchhalterisch, nicht in der Attribution,
+   * nicht gegenueber dem Kunden, sobald Marken eigene Rechtstexte, eigene
+   * Bestaetigungen und eigene Absender haben. normalize.ts erzwingt die
+   * Einheitlichkeit; hier steht das Ergebnis.
+   */
+  brand: string;
   customer: {
     email: string;
     firstName: string;
