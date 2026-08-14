@@ -184,12 +184,23 @@ export class PrintfulProvider implements FulfillmentProvider {
       const printFileUrl = item.metadata.printFileUrl;
       const placement = item.metadata.placement;
 
+      // DIE PROVIDER-GRENZE. Die agnostische Schicht reicht die Katalog-ID als
+      // opaken String durch — ein anderer POD-Anbieter darf alphanumerisch
+      // zaehlen. Printful verlangt eine positive Ganzzahl, also wird hier und nur
+      // hier umgewandelt und geprueft.
+      //
       // Printful's own documentation warns that confusing variant and product ids
       // is a common and costly mistake, so this is checked rather than coerced.
-      if (typeof variantId !== 'number') {
+      if (typeof variantId !== 'string' || variantId.length === 0) {
         throw new Error(
-          `[printful] item ${item.sku}: metadata.catalogVariantId must be a number ` +
-            '(a CATALOG VARIANT id, not a product id)',
+          `[printful] item ${item.sku}: metadata.catalogVariantId fehlt oder ist kein String`,
+        );
+      }
+      const numericVariantId = Number(variantId);
+      if (!Number.isInteger(numericVariantId) || numericVariantId <= 0) {
+        throw new Error(
+          `[printful] item ${item.sku}: catalogVariantId "${variantId}" ist keine positive ` +
+            'Ganzzahl. Printful erwartet eine CATALOG VARIANT id, keine Produkt-ID.',
         );
       }
       if (typeof printFileUrl !== 'string' || printFileUrl.length === 0) {
@@ -201,7 +212,7 @@ export class PrintfulProvider implements FulfillmentProvider {
 
       return {
         source: 'catalog',
-        catalog_variant_id: variantId,
+        catalog_variant_id: numericVariantId,
         quantity: item.quantity,
         placements: [
           {

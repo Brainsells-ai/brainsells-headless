@@ -200,3 +200,44 @@ describe('Shopify-Credentials werden nur an EINER Stelle aus der Umgebung gelese
     ).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Der Provider darf NICHT aus einer Cart-/Line-Item-Property stammen.
+//
+// Es gab diesen Pfad: normalize.ts las `properties[].fulfillmentProvider` und
+// setzte ihn als Provider-Override. Ersatzlos gestrichen, weil Cart-Properties
+// aus dem BROWSER kommen — ein daraus ableitbarer Provider waere eine
+// Angriffsflaeche: jemand koennte Bestellungen an einen fremden Provider routen.
+//
+// Der Provider kommt jetzt ausschliesslich aus dem Varianten-Metafield. Dieser
+// Waechter verhindert, dass der bequeme Weg zurueckkehrt. Er prueft nicht das
+// Wort (der Metadata-Key heisst weiterhin fulfillmentProvider und soll es),
+// sondern die VERKNUEPFUNG von Property-Lesung und Provider.
+// ---------------------------------------------------------------------------
+
+describe('Provider kommt nicht aus einer Cart-Property', () => {
+  const NORMALIZE = path.resolve(__dirname, 'normalize.ts');
+
+  it('normalize.ts liest fulfillmentProvider nicht aus Line-Item-Properties', () => {
+    const src = readFileSync(NORMALIZE, 'utf8');
+    // prop(...) ist der Property-Leser in normalize.ts. Kommt darin
+    // fulfillmentProvider vor, ist der gestrichene Pfad zurueck.
+    const viaProp = /prop\([^)]*fulfillmentProvider/i.test(src);
+    expect(
+      viaProp,
+      [
+        'normalize.ts leitet den Provider wieder aus einer Line-Item-Property ab.',
+        'Cart-Properties kommen aus dem Browser — damit waeren Bestellungen an',
+        'einen fremden Provider routbar. Der Provider gehoert ausschliesslich in',
+        'das Varianten-Metafield (VARIANT_PROVIDER_KEY).',
+      ].join('\n'),
+    ).toBe(false);
+  });
+
+  it('der Provider-Metadata-Key wird weiterhin gesetzt (aus dem Mapping)', () => {
+    // Gegenprobe: der Waechter oben darf nicht dadurch gruen werden, dass der
+    // Provider gar nicht mehr gesetzt wird.
+    const src = readFileSync(NORMALIZE, 'utf8');
+    expect(src).toMatch(/mapping\.provider/);
+  });
+});

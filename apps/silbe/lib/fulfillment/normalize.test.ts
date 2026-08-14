@@ -6,7 +6,7 @@ import type { VariantResolver } from './variant-mapping';
 // injiziert), damit genau dieser Pfad ohne Store und ohne Netz prüfbar ist — er
 // soll nicht erst am echten Provider auffallen.
 
-const ok: VariantResolver = vi.fn(async () => 4025);
+const ok: VariantResolver = vi.fn(async () => ({ catalogVariantId: '4025', provider: null }));
 const unknown: VariantResolver = vi.fn(async () => null);
 
 function payload(over: Partial<ShopifyOrderPayload> = {}): ShopifyOrderPayload {
@@ -46,17 +46,17 @@ describe('normalizeShopifyOrder — Happy Path', () => {
 
   it('trägt die aufgelöste catalog_variant_id als Zahl in die Metadata', async () => {
     const o = await normalizeShopifyOrder(payload(), opts());
-    expect(o.items[0].metadata.catalogVariantId).toBe(4025);
-    expect(typeof o.items[0].metadata.catalogVariantId).toBe('number');
+    expect(o.items[0].metadata.catalogVariantId).toBe('4025');
+    expect(typeof o.items[0].metadata.catalogVariantId).toBe('string');
   });
 
   it('baut die Varianten-GID, wenn nur eine numerische variant_id kommt', async () => {
-    const spy = vi.fn(async () => 4025);
+    const spy: VariantResolver = vi.fn(async () => ({ catalogVariantId: '4025', provider: null }));
     await normalizeShopifyOrder(payload(), opts(spy));
     expect(spy).toHaveBeenCalledWith('gid://shopify/ProductVariant/999');
   });
 
-  it('nimmt Placement, Druckdatei und Provider-Override aus Line-Item-Properties', async () => {
+  it('nimmt Placement und Druckdatei aus Line-Item-Properties', async () => {
     const o = await normalizeShopifyOrder(
       payload({
         line_items: [
@@ -65,7 +65,6 @@ describe('normalizeShopifyOrder — Happy Path', () => {
             properties: [
               { name: 'placement', value: 'back' },
               { name: 'printFileUrl', value: 'https://example.com/f.png' },
-              { name: 'fulfillmentProvider', value: 'mock' },
             ],
           },
         ],
@@ -74,8 +73,36 @@ describe('normalizeShopifyOrder — Happy Path', () => {
     );
     expect(o.items[0].metadata.placement).toBe('back');
     expect(o.items[0].metadata.printFileUrl).toBe('https://example.com/f.png');
-    expect(o.items[0].metadata.fulfillmentProvider).toBe('mock');
     expect(o.items[0].quantity).toBe(2);
+  });
+
+  it('nimmt den Provider aus dem Varianten-Mapping, nicht aus dem Cart', async () => {
+    const withProvider: VariantResolver = vi.fn(async () => ({
+      catalogVariantId: '4025',
+      provider: 'mock',
+    }));
+    const o = await normalizeShopifyOrder(
+      payload({
+        line_items: [
+          {
+            id: 1,
+            sku: 'SKU-1',
+            quantity: 1,
+            variant_id: 999,
+            // Der Versuch, den Provider ueber den Cart zu setzen, muss wirkungslos
+            // bleiben — sonst waeren Bestellungen an fremde Provider routbar.
+            properties: [{ name: 'fulfillmentProvider', value: 'boeser-provider' }],
+          },
+        ],
+      }),
+      opts(withProvider),
+    );
+    expect(o.items[0].metadata.fulfillmentProvider).toBe('mock');
+  });
+
+  it('laesst fulfillmentProvider weg, wenn das Mapping keinen nennt (Brand-Default greift)', async () => {
+    const o = await normalizeShopifyOrder(payload(), opts());
+    expect(o.items[0].metadata.fulfillmentProvider).toBeUndefined();
   });
 
   it('fällt ohne Property auf das übergebene Default-Placement zurück', async () => {
@@ -101,8 +128,8 @@ describe('normalizeShopifyOrder — HARD FAIL, kein Skip, kein Default', () => {
     // Zwei Positionen, die zweite ohne Mapping: die ganze Order muss scheitern.
     // Ein Skip würde eine bezahlte Position still aus der Produktion fallen lassen.
     const resolve: VariantResolver = vi
-      .fn<(gid: string) => Promise<number | null>>()
-      .mockResolvedValueOnce(4025)
+      .fn<VariantResolver>()
+      .mockResolvedValueOnce({ catalogVariantId: '4025', provider: null })
       .mockResolvedValueOnce(null);
     await expect(
       normalizeShopifyOrder(
