@@ -95,6 +95,22 @@ const MAX_EXTERNAL_ID = 32;
  * Aus einer Shopify-GID wird die nackte numerische Id — deterministisch, damit
  * eine Wiederholung dieselbe Id erzeugt und die Idempotenz greift.
  *
+ * EINDEUTIGKEIT, ausdruecklich: die nackte Shopify-Order-Id ist NUR INNERHALB
+ * EINES SHOPS eindeutig. Das ist kein Verlust gegenueber der GID — auch
+ * `gid://shopify/Order/123` traegt KEINE Shop-Komponente, war also nie
+ * shopuebergreifend eindeutig. Die Eigenschaft hat nie existiert.
+ *
+ * Was uns heute traegt: ein Deployment bedient genau EINEN Shopify-Store (Gurt 4
+ * in der Dispatch-Route erzwingt, dass der liefernde Shop der Store der
+ * Credentials ist) und haelt genau EINE PRINTFUL_STORE_ID. Eine Kollision
+ * braeuchte ZWEI Deployments, die sich einen Printful-Store teilen und dabei
+ * verschiedene Shopify-Stores bedienen.
+ *
+ * Dieser Zustand ist zur Laufzeit nicht erkennbar — ein Deployment sieht die
+ * anderen nicht. Deshalb prueft createOrder im Idempotenz-Zweig zusaetzlich die
+ * Empfaenger-Adresse der gefundenen Order: passt sie nicht, ist es nicht unsere
+ * Order, und das wirft. Aus einer stillen Kollision wird ein lauter Fehler.
+ *
  * NICHT GEKUERZT, wenn es trotzdem zu lang ist. Eine Kuerzung koennte zwei
  * verschiedene Orders auf dieselbe external_id abbilden — und dann gaelte die
  * zweite als "existiert bereits" und wuerde NIE produziert. Eine bezahlte
@@ -437,6 +453,28 @@ export class PrintfulProvider implements FulfillmentProvider {
             'dem Loeschen NICHT frei.',
         );
       }
+      // KOLLISIONSPRUEFUNG. Die external_id ist die nackte Shopify-Order-Id und
+      // damit nur INNERHALB EINES SHOPS eindeutig. Teilten sich zwei Deployments
+      // einen Printful-Store, koennten zwei verschiedene Bestellungen dieselbe Id
+      // tragen — und die zweite gaelte als "existiert bereits" und wuerde NIE
+      // produziert. Ein stiller Nicht-Druck einer bezahlten Bestellung.
+      //
+      // Zur Laufzeit ist diese Fehlkonfiguration nicht erkennbar. Die
+      // Empfaenger-Adresse ist es: gehoert die gefundene Order zu jemand anderem,
+      // ist es nicht unsere. Das macht aus der stillen Kollision einen lauten
+      // Fehler an genau der Stelle, wo sie Schaden anrichten wuerde.
+      const wanted = order.customer.email.trim().toLowerCase();
+      const found = existing.email.trim().toLowerCase();
+      if (wanted && found && wanted !== found) {
+        throw new Error(
+          `[printful] external_id "${externalId}" gehoert zu einer Order mit anderem ` +
+            `Empfaenger (${existing.id}). Das ist KEINE Wiederholung dieser Bestellung. ` +
+            'Wahrscheinliche Ursache: zwei Shopify-Stores teilen sich einen ' +
+            'Printful-Store — Shopify-Order-Ids sind nur pro Shop eindeutig. ' +
+            'Es wird nichts gemeldet und nichts angelegt.',
+        );
+      }
+
       const mapped = STATUS_MAP[existing.status.toLowerCase()];
       if (!mapped) {
         // Unbekanntes Vokabular ist ein echtes Signal, kein Randfall — hier
@@ -507,12 +545,16 @@ export class PrintfulProvider implements FulfillmentProvider {
    */
   async getOrderByExternalId(
     externalId: string,
-  ): Promise<{ id: string; status: string } | null> {
+  ): Promise<{ id: string; status: string; email: string } | null> {
     try {
-      const res = await this.request<{ data: { id: number | string; status?: string } }>(
-        `/v2/orders/@${encodeURIComponent(externalId)}`,
-      );
-      return { id: String(res.data.id), status: res.data.status ?? '' };
+      const res = await this.request<{
+        data: { id: number | string; status?: string; recipient?: { email?: string } };
+      }>(`/v2/orders/@${encodeURIComponent(externalId)}`);
+      return {
+        id: String(res.data.id),
+        status: res.data.status ?? '',
+        email: res.data.recipient?.email ?? '',
+      };
     } catch (e) {
       if (e instanceof PrintfulHttpError && e.status === 404) return null;
       throw e;

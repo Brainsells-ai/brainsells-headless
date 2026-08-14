@@ -186,7 +186,7 @@ describe('PrintfulProvider — external_id-Idempotenz', () => {
 
   /** Printful-Doppel mit EINEM Zustand: welche external_ids sind vergeben. */
   function stubPrintful() {
-    const vergeben = new Map<string, { id: number; status: string }>();
+    const vergeben = new Map<string, { id: number; status: string; email: string }>();
     let nextId = 170000001;
     const posts: unknown[] = [];
     const json = (b: unknown, status = 200) =>
@@ -206,7 +206,14 @@ describe('PrintfulProvider — external_id-Idempotenz', () => {
         if (at && init?.method === undefined) {
           const hit = vergeben.get(decodeURIComponent(at[1]));
           return hit
-            ? json({ data: { id: hit.id, status: hit.status, external_id: decodeURIComponent(at[1]) } })
+            ? json({
+                data: {
+                  id: hit.id,
+                  status: hit.status,
+                  external_id: decodeURIComponent(at[1]),
+                  recipient: { email: hit.email },
+                },
+              })
             : json({ error: { message: 'not found' } }, 404);
         }
         if (url.endsWith('/v2/orders') && init?.method === 'POST') {
@@ -229,7 +236,7 @@ describe('PrintfulProvider — external_id-Idempotenz', () => {
             );
           }
           const id = nextId++;
-          vergeben.set(ext, { id, status: 'draft' });
+          vergeben.set(ext, { id, status: 'draft', email: body.recipient.email });
           return json({ data: { id, status: 'draft' } });
         }
         throw new Error(`unerwarteter Aufruf: ${init?.method ?? 'GET'} ${url}`);
@@ -334,6 +341,46 @@ describe('PrintfulProvider — external_id-Idempotenz', () => {
     // dann als bereits angelegt und wuerde nie produziert. Eine bezahlte
     // Bestellung, die still verschwindet, ist das Schlimmste hier.
     expect(() => printfulExternalId('x'.repeat(33))).toThrow(/33 Zeichen/);
+  });
+
+  it('WIRFT, wenn die gefundene Order einen anderen Empfaenger hat', async () => {
+    // Die Kollision, die im Pool-Modell moeglich waere: zwei Shopify-Stores
+    // teilen sich einen Printful-Store, Order-Ids sind nur pro Shop eindeutig.
+    // Ohne diese Pruefung gaelte eine fremde Order als "unsere existiert schon"
+    // und die eigene wuerde NIE produziert — ein stiller Nicht-Druck.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.includes('/v2/catalog-variants/')) {
+          return new Response(JSON.stringify({ data: { catalog_product_id: 171 } }), { status: 200 });
+        }
+        if (url.includes('/v2/catalog-products/')) {
+          return new Response(
+            JSON.stringify({ data: { placements: [{ placement: 'default', technique: 'digital' }] } }),
+            { status: 200 },
+          );
+        }
+        if (url.includes('/v2/orders/@')) {
+          return new Response(
+            JSON.stringify({
+              data: { id: 170000042, status: 'draft', recipient: { email: 'jemand.anderes@example.com' } },
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            error: {
+              message:
+                'External ID validation error. external_id must be unique per store, ' +
+                `${printfulExternalId(EXT)} is already used by store 17916545`,
+            },
+          }),
+          { status: 400 },
+        );
+      }),
+    );
+    await expect(new PrintfulProvider().createOrder(order())).rejects.toThrow(/anderem Empfaenger/);
   });
 
   it('weist einen ANDEREN 400er nicht als Erfolg durch', async () => {
