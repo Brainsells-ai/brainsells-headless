@@ -348,14 +348,36 @@ describe('Erreichbarkeit der lib-Module', () => {
 
   // JEDER Eintrag braucht einen Grund. Eine Allowlist ohne Gruende ist eine
   // Ausrede mit Zeilennummern.
+  //
+  // ┌──────────────────────────────────────────────────────────────────────────┐
+  // │ WENN DIESER TEST WEGEN DER DREI GATE-MODULE ROT WIRD: DAS IST DIE        │
+  // │ QUITTUNG, KEIN FEHLER.                                                   │
+  // │                                                                          │
+  // │ validate.ts, rasterize.ts und print-spec.ts sollen Aufrufer bekommen —   │
+  // │ das ist der ausdrueckliche Plan (Design-Kette: Recraft-Anbindung,        │
+  // │ Rasterize-Stufe). Sobald sie verdrahtet sind, verlassen sie die          │
+  // │ Allowlist, und die Gegenrichtungs-Pruefung schlaegt an: "inzwischen      │
+  // │ erreichbar — bitte aus KNOWN_UNREACHED entfernen".                      │
+  // │                                                                          │
+  // │ RICHTIGE REAKTION: den Eintrag LOESCHEN. Der rote Lauf meldet einen      │
+  // │ Fortschritt.                                                             │
+  // │                                                                          │
+  // │ FALSCHE REAKTION: den Eintrag "vorsichtshalber" stehen lassen oder       │
+  // │ wieder aufnehmen. Damit waere die Allowlist wieder eine Liste, die       │
+  // │ niemand liest — und der Waechter haette seine Aussage verloren.          │
+  // └──────────────────────────────────────────────────────────────────────────┘
   const KNOWN_UNREACHED: Record<string, string> = {
     'lib/fulfillment/validate.ts':
       'Druckdatei-Gate, nie verdrahtet. Fix haengt an Rasterisierung und der ' +
-      'Hosting-Entscheidung fuer Modell B. Eigener Vorgang.',
-    'lib/fulfillment/rasterize.ts': 'Wie validate.ts — Teil desselben unverdrahteten Gates.',
+      'Hosting-Entscheidung fuer Modell B. Eigener Vorgang. ' +
+      'ROT BEIM VERDRAHTEN IST ERWARTET — Eintrag dann loeschen, siehe Kasten oben.',
+    'lib/fulfillment/rasterize.ts':
+      'Wie validate.ts — Teil desselben unverdrahteten Gates. ' +
+      'ROT BEIM VERDRAHTEN IST ERWARTET — Eintrag dann loeschen, siehe Kasten oben.',
     'lib/fulfillment/print-spec.ts':
       'Nur von validate.ts und rasterize.ts importiert, die beide selbst unerreicht sind. ' +
-      'Transitiv tot — genau der Fall, den eine "nur von Tests importiert"-Regel verfehlt.',
+      'Transitiv tot — genau der Fall, den eine "nur von Tests importiert"-Regel verfehlt. ' +
+      'Faellt automatisch mit den beiden anderen; ROT BEIM VERDRAHTEN IST ERWARTET.',
     'lib/asset-manifest.ts':
       'Wird von scripts/import-bundle.ts ERZEUGT, aber von niemandem gelesen. ' +
       'Vorbestehend, ausserhalb des Fulfillment-Vorgangs, nicht untersucht.',
