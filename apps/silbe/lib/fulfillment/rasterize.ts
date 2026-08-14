@@ -1,3 +1,23 @@
+// ███ UNERREICHT — DIESES MODUL LAEUFT NICHT ███
+//
+// Kein Einstiegspunkt fuehrt hierher. Weder eine Route noch ein Script ruft
+// dieses Modul auf; die einzigen Aufrufer sind Tests. Die gruenen Tests belegen,
+// dass die Funktionen ARBEITEN — nicht, dass sie LAUFEN.
+//
+// Das ist keine Fussnote. Das Druckdatei-Gate war das Kernversprechen von PR #78
+// und ist eine Attrappe, solange nichts es aufruft. Verschaerfend: die zwei
+// Fehler, die 2026-08-12 in fetchPlacementSpec gefunden wurden, waren durch das
+// Totsein KONSERVIERT — einer stand im eigenen Fehlertext, der andere direkt
+// unter einem Kommentar, der woertlich davor warnt. Was nie laeuft, kann nicht
+// auffallen und verrottet trotzdem.
+//
+// Verdrahtung haengt an der Rasterisierung und an der Hosting-Entscheidung fuer
+// Modell B (extern erreichbare Druckdatei-URL). Eigener Vorgang.
+// Abgesichert durch den Erreichbarkeits-Waechter in guards.test.ts
+// (KNOWN_UNREACHED) — dieses Modul kann nicht still verdrahtet ODER still
+// weiter vergessen werden.
+// ██████████████████████████████████████████████
+
 // SVG master → PNG delivery raster.
 //
 // This is the step that makes the validation gate meaningful. A vector master has

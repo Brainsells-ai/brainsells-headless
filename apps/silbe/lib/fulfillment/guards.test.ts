@@ -16,7 +16,7 @@
 //
 // Doku schützt den, der sie liest. Ein Test schützt auch den, der sie nicht liest.
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
@@ -239,5 +239,227 @@ describe('Provider kommt nicht aus einer Cart-Property', () => {
     // Provider gar nicht mehr gesetzt wird.
     const src = readFileSync(NORMALIZE, 'utf8');
     expect(src).toMatch(/mapping\.provider/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Kein produkttyp-spezifischer Default fuer Placement und Technik.
+//
+// Es gab zwei davon, beide unsichtbar falsch:
+//   - DEFAULT_PLACEMENT = 'front_large' in der Dispatch-Route (DTG-Shirt)
+//   - technique: ... ?? 'dtg' direkt im Printful-Order-Body (Poster = digital)
+//
+// Beide sind produkttyp-spezifisch. Ein Wert, der fuer das Shirt stimmt, ist
+// fuer das Poster still falsch, und der Fehler zeigt sich erst beim Provider —
+// nicht im eigenen Code. Das Placement kommt aus dem Varianten-Metafield, die
+// Technik aus dem Katalog. Beides ohne Rueckfallwert.
+// ---------------------------------------------------------------------------
+
+describe('Kein Placement- und kein Technik-Default', () => {
+  const NORMALIZE_P = path.resolve(__dirname, 'normalize.ts');
+  const ROUTE_P = path.resolve(
+    __dirname,
+    '..',
+    '..',
+    'app',
+    'api',
+    'webhooks',
+    'fulfillment-dispatch',
+    'route.ts',
+  );
+  const PRINTFUL_P = path.resolve(__dirname, 'providers', 'printful.ts');
+
+  it('normalize.ts kennt keine defaultPlacement-Option mehr', () => {
+    // Die OPTION, nicht nur ihr Wert. Solange sie existiert, ist ein Default
+    // ausdrueckbar — und irgendwer drueckt ihn aus.
+    const src = readFileSync(NORMALIZE_P, 'utf8').replace(/\/\/.*$/gm, '');
+    expect(src).not.toMatch(/defaultPlacement/);
+  });
+
+  it('normalize.ts liest das Placement nicht aus Line-Item-Properties', () => {
+    const src = readFileSync(NORMALIZE_P, 'utf8');
+    const viaProp = /prop\([^)]*['"]placement['"]/i.test(src);
+    expect(
+      viaProp,
+      'normalize.ts leitet das Placement wieder aus einer Line-Item-Property ab. ' +
+        'Die kommt aus dem Browser — das waere browser-gesteuerte Produktionseingabe.',
+    ).toBe(false);
+  });
+
+  it('das Placement wird weiterhin aus dem Mapping gesetzt', () => {
+    // Gegenprobe: die zwei Waechter oben duerfen nicht dadurch gruen werden,
+    // dass gar kein Placement mehr gesetzt wird.
+    //
+    // Auf die ZUWEISUNG geprueft, nicht auf das blosse Vorkommen von
+    // `mapping.placement`. Die erste Fassung tat das und war gruen, obwohl das
+    // Placement durch ein Literal ersetzt war — `mapping.placement` steht auch im
+    // Null-Check darueber. Ein Waechter, der aus einem anderen Grund gruen ist als
+    // dem, den sein Name behauptet, ist kein Waechter.
+    expect(readFileSync(NORMALIZE_P, 'utf8')).toMatch(/placement:\s*mapping\.placement/);
+  });
+
+  it('die Dispatch-Route setzt keinen Placement-Default', () => {
+    const src = readFileSync(ROUTE_P, 'utf8').replace(/\/\/.*$/gm, '');
+    expect(src).not.toMatch(/DEFAULT_PLACEMENT|defaultPlacement|front_large/);
+  });
+
+  it('printful.ts setzt keine Default-Technik im Order-Body', () => {
+    const src = readFileSync(PRINTFUL_P, 'utf8').replace(/\/\/.*$/gm, '');
+    // Ein `technique:` mit ?? oder || dahinter ist ein Rueckfallwert.
+    expect(src).not.toMatch(/technique:\s*[^,\n]*(\?\?|\|\|)/);
+  });
+
+  // Die Gegenprobe zum Technik-Waechter ist bewusst KEIN Textmuster, sondern ein
+  // Verhaltenstest in adapter-contract.test.ts ("Technik kommt aus dem Katalog,
+  // nicht aus einem Default"). Zwei Textfassungen waren hier gruen, obwohl der
+  // Katalog-Call entfernt war: erst traf das Muster die Methodendefinition, dann
+  // den zweiten Aufrufer in fetchPlacementSpec. Wenn ein Waechter zweimal aus dem
+  // falschen Grund gruen ist, ist die Form falsch, nicht das Muster.
+});
+
+// ---------------------------------------------------------------------------
+// ERREICHBARKEIT. Welche lib/-Module haengen ueberhaupt an einem Einstiegspunkt?
+//
+// ANLASS: das Druckdatei-Gate — validate.ts, rasterize.ts, print-spec.ts und die
+// Methode fetchPlacementSpec — war vollstaendig gebaut, vollstaendig getestet und
+// NIRGENDS im Order-Pfad verdrahtet. 197 gruene Tests bewiesen, dass die
+// Funktionen arbeiten; nichts bewies, dass sie laufen. Das war das
+// Kernversprechen von PR #78 und war eine Attrappe.
+//
+// VERSCHAERFEND: die zwei Fehler, die spaeter darin gefunden wurden, waren durch
+// das Totsein KONSERVIERT. Der limit=100-Fehler stand im eigenen Fehlertext, der
+// falsche .find() direkt unter einem Kommentar, der woertlich davor warnt. Ein
+// Gate, das nie laeuft, verrottet unbemerkt — und meldet trotzdem gruen.
+//
+// Dieser Waechter misst ERREICHBARKEIT, nicht "wird nur von Tests importiert".
+// Der Unterschied ist wesentlich: print-spec.ts wird von zwei
+// PRODUKTIVDATEIEN importiert (validate.ts, rasterize.ts) und waere unter der
+// schwaecheren Regel unauffaellig — es sind nur beide selbst unerreicht.
+//
+// GRENZE, ausdruecklich: das ist MODUL-Ebene. Ein unerreichter EXPORT in einem
+// erreichten Modul faellt hier nicht auf — genau der Fall von
+// fetchPlacementSpec, das in einem laengst importierten printful.ts liegt. Dafuer
+// braeuchte es einen Aufrufgraphen. Solange es den nicht gibt, traegt die
+// Methode einen lauten Marker im Code.
+// ---------------------------------------------------------------------------
+
+describe('Erreichbarkeit der lib-Module', () => {
+  const APP_ROOT = path.resolve(__dirname, '..', '..');
+
+  // JEDER Eintrag braucht einen Grund. Eine Allowlist ohne Gruende ist eine
+  // Ausrede mit Zeilennummern.
+  const KNOWN_UNREACHED: Record<string, string> = {
+    'lib/fulfillment/validate.ts':
+      'Druckdatei-Gate, nie verdrahtet. Fix haengt an Rasterisierung und der ' +
+      'Hosting-Entscheidung fuer Modell B. Eigener Vorgang.',
+    'lib/fulfillment/rasterize.ts': 'Wie validate.ts — Teil desselben unverdrahteten Gates.',
+    'lib/fulfillment/print-spec.ts':
+      'Nur von validate.ts und rasterize.ts importiert, die beide selbst unerreicht sind. ' +
+      'Transitiv tot — genau der Fall, den eine "nur von Tests importiert"-Regel verfehlt.',
+    'lib/asset-manifest.ts':
+      'Wird von scripts/import-bundle.ts ERZEUGT, aber von niemandem gelesen. ' +
+      'Vorbestehend, ausserhalb des Fulfillment-Vorgangs, nicht untersucht.',
+    'lib/tokens.ts':
+      'Keine einzige Referenz im Repo. Vorbestehend, ausserhalb des ' +
+      'Fulfillment-Vorgangs, nicht untersucht.',
+  };
+
+  function collect(dir: string, out: string[] = []): string[] {
+    for (const e of readdirSync(dir)) {
+      if (e === 'node_modules' || e === '.next') continue;
+      const p = path.join(dir, e);
+      if (statSync(p).isDirectory()) collect(p, out);
+      else if (/\.tsx?$/.test(e)) out.push(p);
+    }
+    return out;
+  }
+
+  function resolveSpec(fromFile: string, spec: string): string | null {
+    let base: string;
+    if (spec.startsWith('@/')) base = path.join(APP_ROOT, spec.slice(2));
+    else if (spec.startsWith('.')) base = path.resolve(path.dirname(fromFile), spec);
+    else return null;
+    for (const c of [
+      `${base}.ts`,
+      `${base}.tsx`,
+      path.join(base, 'index.ts'),
+      path.join(base, 'index.tsx'),
+    ]) {
+      if (existsSync(c) && statSync(c).isFile()) return c;
+    }
+    return null;
+  }
+
+  function unreachedModules(): string[] {
+    const all = collect(APP_ROOT);
+    const isTest = (f: string) => /\.test\.tsx?$/.test(f);
+    const inDir = (f: string, d: string) => f.includes(`${path.sep}${d}${path.sep}`);
+
+    // Einstiegspunkte: app/ (Routen, Seiten, Layouts) und scripts/ (ausfuehrbar).
+    // Tests sind bewusst KEINE Wurzeln — sonst waere jedes getestete Modul
+    // automatisch "erreicht", und der Waechter koennte genau das nicht mehr
+    // finden, wofuer es ihn gibt.
+    const roots = all.filter((f) => !isTest(f) && (inDir(f, 'app') || inDir(f, 'scripts')));
+
+    const reached = new Set<string>();
+    const stack = [...roots];
+    while (stack.length > 0) {
+      const f = stack.pop() as string;
+      if (reached.has(f)) continue;
+      reached.add(f);
+      const src = readFileSync(f, 'utf8');
+      for (const m of src.matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)) {
+        const dep = resolveSpec(f, m[1]);
+        if (dep && !reached.has(dep)) stack.push(dep);
+      }
+    }
+
+    return all
+      .filter((f) => inDir(f, 'lib') && !isTest(f) && !reached.has(f))
+      .map((f) => path.relative(APP_ROOT, f).replace(/\\/g, '/'))
+      .sort();
+  }
+
+  it('kein neues Modul faellt aus dem Order-Pfad heraus', () => {
+    const actual = unreachedModules();
+    const known = Object.keys(KNOWN_UNREACHED).sort();
+    const neu = actual.filter((f) => !(f in KNOWN_UNREACHED));
+
+    expect(
+      neu,
+      [
+        'Diese Module haengen an keinem Einstiegspunkt mehr:',
+        ...neu.map((f) => `  - ${f}`),
+        '',
+        'Entweder verdrahten oder mit BEGRUENDUNG in KNOWN_UNREACHED eintragen.',
+        'Ein Modul, das niemand aufruft, kann nicht falsch sein — und verrottet',
+        'genau deshalb unbemerkt weiter.',
+      ].join('\n'),
+    ).toEqual([]);
+
+    // Die Gegenrichtung ist genauso wichtig: wird ein bekanntes Modul verdrahtet,
+    // MUSS es aus der Liste verschwinden. Sonst waechst eine Liste, die niemand
+    // mehr liest, und der Waechter verliert seine Aussage.
+    const inzwischenErreicht = known.filter((f) => !actual.includes(f));
+    expect(
+      inzwischenErreicht,
+      [
+        'Diese Module sind inzwischen erreichbar — bitte aus KNOWN_UNREACHED entfernen:',
+        ...inzwischenErreicht.map((f) => `  - ${f}`),
+      ].join('\n'),
+    ).toEqual([]);
+  });
+
+  it('das Druckdatei-Gate ist als unerreicht dokumentiert, nicht stillschweigend geduldet', () => {
+    // Gegenprobe zur Allowlist selbst: die drei Gate-Module MUESSEN drinstehen,
+    // solange sie unerreicht sind. Faellt einer raus, weil jemand ihn geloescht
+    // hat, ist das eine andere Entscheidung und soll auffallen.
+    for (const f of [
+      'lib/fulfillment/validate.ts',
+      'lib/fulfillment/rasterize.ts',
+      'lib/fulfillment/print-spec.ts',
+    ]) {
+      expect(KNOWN_UNREACHED[f], `${f} fehlt in KNOWN_UNREACHED`).toBeTruthy();
+    }
   });
 });

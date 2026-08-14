@@ -26,7 +26,11 @@ import { config as loadEnv } from 'dotenv';
 loadEnv({ path: path.resolve(__dirname, '..', '.env.local') });
 
 import { brandConfig } from '@/lib/brand.config';
-import { VARIANT_MAPPING_KEY, VARIANT_PROVIDER_KEY } from '@/lib/fulfillment/variant-mapping';
+import {
+  VARIANT_MAPPING_KEY,
+  VARIANT_PLACEMENT_KEY,
+  VARIANT_PROVIDER_KEY,
+} from '@/lib/fulfillment/variant-mapping';
 import { shopDomainOf, type ShopifyStore } from '@/lib/shopify-admin';
 import { requireStoreArg, announceWriteTarget } from './lib/store-arg';
 
@@ -43,15 +47,20 @@ const ADMIN_API_VERSION = process.env.ADMIN_API_VERSION ?? '2026-04';
 //
 // ⚠️ Das Placement heißt "default", NICHT "front_large". front_large ist ein
 // DTG-Shirt-Placement; für dieses Produkt gibt es genau ein Placement. Die
-// Dispatch-Route setzt derzeit DEFAULT_PLACEMENT = 'front_large' — für Poster
-// falsch. Separater Vorgang, hier nur festgehalten.
+// Dispatch-Route hatte 'front_large' als Default fest verdrahtet — entfernt, das
+// Placement steht jetzt im Varianten-Metafield (VARIANT_PLACEMENT_KEY).
 const CATALOG_VARIANT_ID = '19526';
 const PROVIDER = 'printful';
+// Poster haben genau EIN druckbares Placement, und es heisst "default" — nicht
+// "front_large" (das ist DTG-Shirt). Belegt ueber
+// mockup-generator/printfiles/171 → available_placements: {"default": "Print file"}.
+const PLACEMENT = 'default';
 const SIZE_LABEL = 'A2 (42 × 59,4 cm)';
 
 interface TestProduct {
   vendor: string;
   title: string;
+  handle: string;
   sku: string;
   price: string;
 }
@@ -60,12 +69,14 @@ const PRODUCTS: TestProduct[] = [
   {
     vendor: 'testbrand-a',
     title: 'Testposter A2 (testbrand-a)',
+    handle: 'testposter-a2-testbrand-a',
     sku: 'TBA-POSTER-A2',
     price: '29.00',
   },
   {
     vendor: 'testbrand-b',
     title: 'Testposter A2 (testbrand-b)',
+    handle: 'testposter-a2-testbrand-b',
     sku: 'TBB-POSTER-A2',
     price: '34.00',
   },
@@ -75,6 +86,17 @@ const PRODUCTS: TestProduct[] = [
 // legt productCreate eine Default-Variante an, die man anschliessend nachziehen
 // muesste — zwei Schreibvorgaenge fuer einen Zustand. productSet beschreibt den
 // Zielzustand in einem Call, inklusive Varianten-Metafields.
+const LOOKUP = /* GraphQL */ `
+  query ProductByHandle($q: String!) {
+    products(first: 1, query: $q) {
+      nodes {
+        id
+        handle
+      }
+    }
+  }
+`;
+
 const MUTATION = /* GraphQL */ `
   mutation SeedTestProduct($input: ProductSetInput!) {
     productSet(synchronous: true, input: $input) {
@@ -114,9 +136,14 @@ const MUTATION = /* GraphQL */ `
   }
 `;
 
-function inputFor(p: TestProduct, namespace: string) {
+function inputFor(p: TestProduct, namespace: string, existingId?: string) {
   return {
+    // Mit id ist productSet ein Update, ohne id eine Anlage. Dadurch ist das
+    // Script wiederholbar — ein zweiter Lauf ergaenzt fehlende Metafields, statt
+    // Duplikate anzulegen.
+    ...(existingId ? { id: existingId } : {}),
     title: p.title,
+    handle: p.handle,
     vendor: p.vendor,
     status: 'DRAFT',
     productType: 'Poster',
@@ -139,6 +166,12 @@ function inputFor(p: TestProduct, namespace: string) {
             namespace,
             key: VARIANT_PROVIDER_KEY,
             value: PROVIDER,
+            type: 'single_line_text_field',
+          },
+          {
+            namespace,
+            key: VARIANT_PLACEMENT_KEY,
+            value: PLACEMENT,
             type: 'single_line_text_field',
           },
         ],
@@ -189,34 +222,44 @@ async function main(): Promise<void> {
   announceWriteTarget(resolved);
   const token = await adminToken(resolved.store);
 
-  for (const p of PRODUCTS) {
+  async function gql<T>(query: string, variables: unknown, label: string): Promise<T> {
     const res = await fetch(`https://${domain}/admin/api/${ADMIN_API_VERSION}/graphql.json`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
-      body: JSON.stringify({ query: MUTATION, variables: { input: inputFor(p, namespace) } }),
+      body: JSON.stringify({ query, variables }),
     });
-    const json = (await res.json()) as {
-      data?: {
-        productSet: {
-          product: unknown;
-          userErrors: { field: string[] | null; message: string; code: string | null }[];
-        } | null;
-      };
-      errors?: unknown;
-    };
-
+    const json = (await res.json()) as { data?: T; errors?: unknown };
     if (json.errors) {
       // Scope-Fehler kommen hier an (ACCESS_DENIED). Bewusst KEIN Ausweichen auf
       // einen anderen Pfad: fehlt write_products fuer Produkte, ist das ein Fund,
       // kein Hindernis.
-      throw new Error(`GraphQL errors (${p.vendor}): ${JSON.stringify(json.errors)}`);
+      throw new Error(`GraphQL errors (${label}): ${JSON.stringify(json.errors)}`);
     }
-    const out = json.data?.productSet;
-    if (out?.userErrors?.length) {
-      throw new Error(`userErrors (${p.vendor}): ${JSON.stringify(out.userErrors)}`);
+    if (!json.data) throw new Error(`Keine data-Antwort (${label})`);
+    return json.data;
+  }
+
+  for (const p of PRODUCTS) {
+    const found = await gql<{ products: { nodes: Array<{ id: string; handle: string }> } }>(
+      LOOKUP,
+      { q: `handle:${p.handle}` },
+      `lookup ${p.vendor}`,
+    );
+    const existing = found.products.nodes.find((n) => n.handle === p.handle);
+    console.log(`
+  ${p.vendor}: ${existing ? `Update ${existing.id}` : 'Neuanlage'}`);
+
+    const out = await gql<{
+      productSet: {
+        product: unknown;
+        userErrors: { field: string[] | null; message: string; code: string | null }[];
+      } | null;
+    }>(MUTATION, { input: inputFor(p, namespace, existing?.id) }, p.vendor);
+
+    if (out.productSet?.userErrors?.length) {
+      throw new Error(`userErrors (${p.vendor}): ${JSON.stringify(out.productSet.userErrors)}`);
     }
-    console.log(`\n  ✓ ${p.vendor}`);
-    console.log(JSON.stringify(out?.product, null, 2));
+    console.log(JSON.stringify(out.productSet?.product, null, 2));
   }
 }
 

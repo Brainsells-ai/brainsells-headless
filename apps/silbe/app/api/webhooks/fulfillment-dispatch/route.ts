@@ -31,8 +31,9 @@ import { routeOrder } from '@/lib/fulfillment/router';
 
 export const runtime = 'nodejs';
 
-/** Placement-Default. Siehe normalize.ts: bewusst hier und nicht im Modul. */
-const DEFAULT_PLACEMENT = 'front_large';
+// Hier stand ein Placement-Default ('front_large'). Er ist ersatzlos entfernt:
+// das ist ein DTG-Shirt-Placement und war für jedes Poster still falsch. Das
+// Placement kommt jetzt aus dem Varianten-Metafield, ohne Rückfallwert.
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const rawBody = await req.text();
@@ -83,7 +84,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     const order = await normalizeShopifyOrder(payload as never, {
       resolveVariant: makeVariantResolver(store),
-      defaultPlacement: DEFAULT_PLACEMENT,
     });
 
     const results = await routeOrder(order);

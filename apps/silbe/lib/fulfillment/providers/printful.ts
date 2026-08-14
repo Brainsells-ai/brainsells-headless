@@ -109,18 +109,56 @@ export class PrintfulProvider implements FulfillmentProvider {
   }
 
   /**
-   * Placement geometry for one catalog variant, straight from the catalog.
-   * This is the data-driven half of the validation gate.
+   * The ONE catalog variant, by id. Carries `catalog_product_id` and this
+   * variant's own `placement_dimensions` (verified 2026-08-12 against the live
+   * v2 API for variants 19526 and 4025).
    *
-   * The variant is selected BY ID and a miss throws. Never "the first variant" —
-   * placement dimensions can differ per size, so a positional pick would validate
-   * against the wrong geometry and pass a file that is wrong for the ordered size.
+   * This replaces the previous route of listing a product's variants and picking
+   * ours out of the page. That route was unusable for apparel: catalog product 71
+   * has 590 variants and the request asked for `limit=100`, so the lookup threw
+   * "variant not found on product" for almost every real variant. The old code
+   * said so in its own error text — but since nothing ever called it, the note
+   * never became a failure anyone had to face.
    */
-  async fetchPlacementSpec(
-    catalogProductId: number,
+  private async fetchCatalogVariant(catalogVariantId: number): Promise<{
+    catalog_product_id: number;
+    placement_dimensions?: Array<{
+      placement: string;
+      width: number;
+      height: number;
+      orientation?: string;
+    }>;
+  }> {
+    const res = await this.request<{
+      data: {
+        catalog_product_id: number;
+        placement_dimensions?: Array<{
+          placement: string;
+          width: number;
+          height: number;
+          orientation?: string;
+        }>;
+      };
+    }>(`/v2/catalog-variants/${catalogVariantId}`, { storeScoped: false });
+    return res.data;
+  }
+
+  /**
+   * Does this product offer this placement, and under which technique?
+   *
+   * The technique is NOT a choice — for a given product and placement the catalog
+   * names exactly one. That is the difference to the placement itself, which the
+   * catalog only offers as a SET (variant 4025: front, back, sleeve_left,
+   * sleeve_right, embroidery_chest_left, …) and which therefore has to be carried
+   * by the Shopify variant. Derivable → derive it; a choice → store it.
+   */
+  async fetchPlacementMeta(
     catalogVariantId: number,
     placement: string,
-  ): Promise<PlacementSpec> {
+  ): Promise<{ catalogProductId: number; technique: string; conflictsWith: string[] }> {
+    const variant = await this.fetchCatalogVariant(catalogVariantId);
+    const catalogProductId = variant.catalog_product_id;
+
     const product = await this.request<{
       data: {
         placements: Array<{
@@ -135,42 +173,80 @@ export class PrintfulProvider implements FulfillmentProvider {
     if (!placementMeta) {
       const known = product.data.placements.map((p) => p.placement).join(', ');
       throw new Error(
-        `[printful] placement "${placement}" not offered by product ${catalogProductId}. Known: ${known}`,
+        `[printful] placement "${placement}" not offered by product ${catalogProductId} ` +
+          `(variant ${catalogVariantId}). Known: ${known}`,
       );
     }
 
-    const variants = await this.request<{
-      data: Array<{
-        id: number;
-        placement_dimensions?: Array<{ placement: string; width: number; height: number }>;
-      }>;
-    }>(`/v2/catalog-products/${catalogProductId}/catalog-variants?limit=100`, {
-      storeScoped: false,
-    });
+    return {
+      catalogProductId,
+      technique: placementMeta.technique,
+      conflictsWith: placementMeta.conflicting_placements ?? [],
+    };
+  }
 
-    const variant = variants.data.find((v) => v.id === catalogVariantId);
-    if (!variant) {
-      throw new Error(
-        `[printful] variant ${catalogVariantId} not found on product ${catalogProductId} ` +
-          '(note: the variant list is paged — a product with >100 variants needs paging here)',
-      );
-    }
+  /**
+   * ███ UNERREICHT — DIESE METHODE WIRD NICHT AUFGERUFEN ███
+   *
+   * Kein Produktivpfad ruft sie. Der Erreichbarkeits-Waechter in guards.test.ts
+   * findet sie NICHT: er misst Module, und printful.ts ist laengst verdrahtet.
+   * Ein unerreichter Export in einem erreichten Modul braeuchte einen
+   * Aufrufgraphen. Solange es den nicht gibt, steht hier dieser Marker.
+   *
+   * Die zwei Fehler unten (Paging, Orientierung) sind der Beleg dafuer, warum das
+   * zaehlt: beide waren durch das Totsein konserviert.
+   *
+   * Placement geometry for one catalog variant, straight from the catalog.
+   * This is the data-driven half of the validation gate.
+   *
+   * ORIENTATION IS NOT GUESSED. A placement can appear MORE THAN ONCE in
+   * `placement_dimensions`, distinguished only by `orientation` — variant 19526
+   * lists `default` twice: vertical 16.54 x 23.39 and horizontal 23.39 x 16.54
+   * (verified 2026-08-12). The previous code took the first match, which is the
+   * very mistake the comment above it warned against, one level down: a positional
+   * pick validates against the wrong geometry. When several entries qualify and no
+   * orientation is given, this throws rather than choosing.
+   */
+  async fetchPlacementSpec(
+    catalogVariantId: number,
+    placement: string,
+    orientation?: string,
+  ): Promise<PlacementSpec> {
+    const meta = await this.fetchPlacementMeta(catalogVariantId, placement);
+    const variant = await this.fetchCatalogVariant(catalogVariantId);
 
-    const dims = variant.placement_dimensions?.find((d) => d.placement === placement);
-    if (!dims) {
+    const all = (variant.placement_dimensions ?? []).filter((d) => d.placement === placement);
+    if (all.length === 0) {
       throw new Error(
         `[printful] variant ${catalogVariantId} declares no dimensions for placement "${placement}"`,
       );
     }
 
+    const candidates = orientation
+      ? all.filter((d) => (d.orientation ?? 'any') === orientation)
+      : all;
+
+    if (candidates.length !== 1) {
+      const shown = all
+        .map((d) => `${d.orientation ?? 'any'}: ${d.width}x${d.height}`)
+        .join(' | ');
+      throw new Error(
+        `[printful] variant ${catalogVariantId}, placement "${placement}": ` +
+          `${candidates.length === 0 ? 'no' : candidates.length} dimension entries match ` +
+          `orientation "${orientation ?? '(none given)'}". Available: ${shown}. ` +
+          'Refusing to pick one — a positional pick validates against the wrong geometry.',
+      );
+    }
+    const dims = candidates[0];
+
     return {
       placement,
-      technique: placementMeta.technique,
+      technique: meta.technique,
       // INCHES. The API declares no unit; inches is established by cross-check
       // (front_large returns 15 x 18, documented as 15" x 18"). See print-spec.ts.
       widthIn: dims.width,
       heightIn: dims.height,
-      conflictsWith: placementMeta.conflicting_placements ?? [],
+      conflictsWith: meta.conflictsWith,
     };
   }
 
@@ -179,7 +255,7 @@ export class PrintfulProvider implements FulfillmentProvider {
       throw new Error('[printful] refusing to create an order with no items');
     }
 
-    const items = order.items.map((item) => {
+    const items = await Promise.all(order.items.map(async (item) => {
       const variantId = item.metadata.catalogVariantId;
       const printFileUrl = item.metadata.printFileUrl;
       const placement = item.metadata.placement;
@@ -210,6 +286,20 @@ export class PrintfulProvider implements FulfillmentProvider {
         throw new Error(`[printful] item ${item.sku}: metadata.placement is required`);
       }
 
+      // TECHNIK AUS DEM KATALOG, nicht aus einem Default. Hier stand
+      // `?? 'dtg'` — die Shirt-Technik, für jedes Poster ("digital") falsch, und
+      // zwar nicht in einer Konstante, sondern direkt im Order-Body. Derselbe
+      // Fehler wie beim Placement-Default, eine Ebene tiefer.
+      //
+      // Der Call validiert zugleich, dass das Placement zu DIESEM Produkt gehört
+      // — die Prüfung, die bisher niemand machte: das Gate hielt die Datei gegen
+      // ein Placement, aber nichts hielt das Placement gegen das Produkt.
+      //
+      // Kein Memo: eine Order hat wenige Positionen und je Position eine andere
+      // Variante. Wenn Bestellungen mit vielen Positionen üblich werden, gehört
+      // hier ein Cache pro Aufruf hin — nicht pro Instanz, die lebt zu lang.
+      const { technique } = await this.fetchPlacementMeta(numericVariantId, placement);
+
       return {
         source: 'catalog',
         catalog_variant_id: numericVariantId,
@@ -217,12 +307,12 @@ export class PrintfulProvider implements FulfillmentProvider {
         placements: [
           {
             placement,
-            technique: (item.metadata.technique as string | undefined) ?? 'dtg',
+            technique,
             layers: [{ type: 'file', url: printFileUrl }],
           },
         ],
       };
-    });
+    }));
 
     const body = {
       external_id: order.id,

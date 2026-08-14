@@ -20,7 +20,11 @@ import { config as loadEnv } from 'dotenv';
 loadEnv({ path: path.resolve(__dirname, '..', '.env.local') });
 
 import { brandConfig } from '@/lib/brand.config';
-import { VARIANT_MAPPING_KEY, VARIANT_PROVIDER_KEY } from '@/lib/fulfillment/variant-mapping';
+import {
+  VARIANT_MAPPING_KEY,
+  VARIANT_PLACEMENT_KEY,
+  VARIANT_PROVIDER_KEY,
+} from '@/lib/fulfillment/variant-mapping';
 import { shopDomainOf, type ShopifyStore } from '@/lib/shopify-admin';
 import { requireStoreArg, announceWriteTarget } from './lib/store-arg';
 
@@ -91,6 +95,17 @@ async function main(): Promise<void> {
       description:
         'Welcher Provider diese Variante erfuellt ("printful", "mock", …). Traegt die ' +
         'Variante selbst, statt es aus dem Store zu schliessen — ein Store kann gemischt sein.',
+      type: 'single_line_text_field',
+      ownerType: 'PRODUCTVARIANT',
+    },
+    {
+      name: 'Provider placement',
+      namespace,
+      key: VARIANT_PLACEMENT_KEY,
+      description:
+        'Druckposition beim Provider ("default" fuer Poster, "front_large" fuer DTG-Shirts). ' +
+        'Traegt die Variante, weil der Katalog nur sagt, welche Placements MOEGLICH sind — ' +
+        'nicht, auf welches dieses Produkt druckt. Ohne sie ist die Variante nicht erfuellbar.',
       type: 'single_line_text_field',
       ownerType: 'PRODUCTVARIANT',
     },
