@@ -3,8 +3,15 @@ name: test
 on:
   push:
     branches: [main]
+  # KEIN branches-Filter. Vorher stand hier `branches: [main]`, und damit lief CI
+  # NUR fuer PRs gegen main. Gestapelte PRs — deren Base ein anderer Branch ist —
+  # loesten den Workflow gar nicht aus, und die PR-Seite zeigt dann keine Checks:
+  # kein rotes Kreuz, das auffiele, sondern schlicht nichts.
+  #
+  # Am 2026-08-14 hatten drei von vier PRs eines Stapels (#81, #82, #83) nie CI
+  # gesehen. Sie waren lokal gruen, aber die Gruppe sah geprueft aus, ohne es zu
+  # sein — dieselbe Klasse wie ein leerer Glob, der als Bestanden durchgeht.
   pull_request:
-    branches: [main]
 
 concurrency:
   group: test-${{ github.ref }}
