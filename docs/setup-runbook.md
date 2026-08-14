@@ -43,6 +43,96 @@ korrigieren, wo die Realität abweicht (Block-B-Prinzip).
 
 ---
 
+## Schritt 0 — Store anlegen und App installieren
+
+**Status:** 🟢 verifiziert am 2026-08-12 beim Aufbau von `brainsells-pod-pool-dev` (Befunde #1, #8, #9).
+
+> ⚠️ **Befund #1:** Dieser Schritt fehlte vollständig. Das Runbook begann bei
+> „Custom-App anlegen" und setzte einen Store stillschweigend voraus — beim ersten
+> echten N+1-Durchlauf war genau das der erste Stolperstein.
+
+**Aktion:**
+
+1. **Store anlegen.** Für Nicht-Produktion einen **Development Store** über das
+   Partner-/Dev-Dashboard. Er ist kostenlos, hat aber ein Kaufverbot für echte
+   Zahlungen — für den Fulfillment-Durchstich (Draft-Orders) genügt er.
+
+2. **App im Dev Dashboard oder per CLI anlegen — NICHT im Shopify-Admin.**
+
+   > ⚠️ **Befund #8:** Der frühere Weg „EINE Custom-App im Shopify-Admin anlegen"
+   > ist **seit 01.01.2026 nicht mehr möglich.** Legacy-Custom-Apps sind im Admin
+   > nicht mehr erstellbar. Wer der alten Anweisung folgt, sucht einen Menüpunkt,
+   > den es nicht gibt.
+
+3. **Scopes ins REQUIRED-Feld eintragen, nicht ins Optional-Feld.**
+
+   > ⚠️ **Gap #9:** Das Dev Dashboard hat ein Feld für *optionale* Scopes. Dort
+   > eingetragene Scopes werden beim Client-Credentials-Grant **nicht** gewährt.
+   > Symptom: der Mint liefert ein Token mit `scope: ""` und jeder Call endet in
+   > `ACCESS_DENIED` bzw. „App must be extendable".
+
+4. **Version releasen.** Scopes ändern wirkt erst nach einem Release.
+
+5. **App installieren — und die Installation VERIFIZIEREN.**
+
+   > ⚠️ **Befund #9 / Gap #8:** „Release" und „Install" sind zwei verschiedene
+   > Dinge. Eine App kann erstellt und released sein und trotzdem **null
+   > Installationen** haben; dann schlägt jeder Admin-Call mit
+   > `app_not_installed` fehl. Das ist am 2026-08-12 real eingetreten und kostete
+   > den ersten Fehlversuch.
+   >
+   > Der billigste Prüfort ist das Dev Dashboard: es zeigt **„0 installs"**.
+   > Prüfen, bevor irgendein Script läuft.
+   >
+   > Die Kette ist dreistufig und jede Stufe kann einzeln fehlen:
+   > **Scopes eintragen → Version releasen → Installation autorisieren.**
+
+**Ergebnis-Check** — der einzige, der alle drei Stufen zugleich prüft:
+
+```bash
+curl -s -X POST "https://<subdomain>.myshopify.com/admin/oauth/access_token" \
+  -H 'Content-Type: application/json' \
+  -d '{"client_id":"…","client_secret":"…","grant_type":"client_credentials"}' \
+  | python -c "import sys,json;d=json.load(sys.stdin);print('scope:',repr(d.get('scope')))"
+```
+
+`scope: ''` heißt: eine der drei Stufen fehlt. Ein nicht-leerer Scope-String heißt:
+alle drei sitzen. Die Seed-Scripts prüfen das inzwischen selbst und brechen mit
+dieser Erklärung ab.
+
+---
+
+## Schritt 0.1 — Mehrere Stores nebeneinander
+
+**Status:** 🟢 verifiziert (PR #79, Befund #10).
+
+Das Runbook ging durchgehend von **„ein Store = eine Brand"** aus. Das gilt nicht
+mehr, und die Annahme war gefährlich, nicht nur unvollständig.
+
+> ⚠️ **Befund #2 / #10:** Sobald Credentials für **zwei** Stores nebeneinander in
+> `.env.local` liegen, entscheidet nicht mehr die Absicht, welcher Store getroffen
+> wird, sondern welche Variable ein Script liest. Vor PR #79 war
+> `SHOPIFY_SHOP` ein stiller globaler Default — ein Script, das für den Dev-Store
+> gedacht war, hätte **Produktion** getroffen, bei den schreibenden ohne jede
+> Warnung und ohne Rückweg.
+
+**Regel:** Jedes Script, das gegen Shopify arbeitet, verlangt `--store=<subdomain>`.
+Es gibt bewusst **keinen Default**, auch nicht bei nur einem konfigurierten Store —
+ein Default, der heute eindeutig ist, ist morgen der falsche, und genau dieser
+Übergang ist eingetreten.
+
+Env-Präfixe stehen in `apps/silbe/scripts/lib/store-arg.ts` unter `KNOWN_PREFIXES`.
+Ein neuer Store = ein neues Präfix dort.
+
+Schreibende Scripts geben das Ziel vor dem ersten Schreibzugriff aus und verlangen
+für Produktion zusätzlich `--yes-production`.
+
+**Pool-Store:** Ein Store kann mehrere Marken tragen (`fulfillment.brand`-Metafield
+auf dem Produkt). Eine Bestellung darf trotzdem nur **eine** Marke enthalten — siehe
+PR #82; gemischte Warenkörbe sind ein harter Fehler, kein Randfall.
+
+---
+
 ## Schritt 1 — Shopify Custom-App + Scopes + Identitäts-Invariante
 
 **Status:** Fakten 🟢 verifiziert (PR #11, #35, #50–#54; Memories app-identity + hmac-mismatch) · Reihenfolge 🟡 rekonstruiert (bewusst GANZ vorne — der teuerste Trap).
@@ -51,18 +141,58 @@ korrigieren, wo die Realität abweicht (Block-B-Prinzip).
 (z. B. `z9xkt0-2v`), **nicht** die `.myshopify.com`-Domain.
 
 **Aktion:**
-1. **EINE** Custom-App im Shopify-Admin anlegen, die sowohl die Admin-Operationen als
-   auch die Webhook-Registrierung trägt. (SILBE: „silbe admin operations".)
-2. **Admin-Scopes** vergeben:
-   - `read_products` + `write_products` — Metafield-Seed (PR #11).
+1. **EINE** App — angelegt in **Schritt 0** über Dev Dashboard oder CLI, **nicht** im
+   Shopify-Admin (Befund #8: dort seit 01.01.2026 nicht mehr möglich). Sie trägt sowohl
+   die Admin-Operationen als auch die Webhook-Registrierung. (SILBE: „silbe admin
+   operations".)
+2. **Admin-Scopes** vergeben — ins **REQUIRED**-Feld (Gap #9):
+   - `read_products` + `write_products` — Metafield-Seed (PR #11), Metafield-**Definitionen**
+     und **Produktanlage**.
    - `read_orders` + `write_orders` — Widerruf-Lookup/Tag/Note (PR #35) + Refund-Order-Lookup + Idempotenz-Marker (`metafieldsSet` auf der Order).
+   - `write_product_listings`, `read_inventory` — Katalog-Veröffentlichung.
    - **Protected Customer Data (PCD) access** — orders/paid liefert `client_details.browser_ip` / `user_agent` **nur** mit PCD-Freigabe (für CAPI ip/ua).
+
+   > ⚠️ **Befund #3 (korrigiert):** Das Runbook nannte vier Scopes; der reale
+   > Pool-Dev-Store zeigt **sieben**. Gemessen am 2026-08-12:
+   > `read_inventory, write_orders, write_product_listings, write_products`
+   > (plus die impliziten Read-Rechte).
+   >
+   > **`write_inventory` ist NICHT nötig** — nicht „6–8, je nachdem". Für
+   > Print-on-Demand wird kein Bestand geführt (`tracked: false`,
+   > `inventoryPolicy: CONTINUE`), und ohne Tracking legt Shopify gar keine
+   > Bestandsebene an, die man schreiben könnte. **Empirisch belegt:** Anlage
+   > zweier Produkte mit Varianten und Metafields ist mit den sieben Scopes
+   > durchgelaufen, ohne einen einzigen Scope-Fehler.
+   >
+   > `write_inventory` ist damit **Vorsorge für getrackte Produkte**, kein
+   > Bestandteil des POD-Minimums. Wer es nachzieht, schadet nichts; wer darauf
+   > wartet, wartet umsonst.
 3. **Storefront-API-Zugang** (read_products + Storefront-Access-Token) für die Katalog-/Cart-Reads der Storefront.
 4. **2026-01-Auth-Migration:** kein statischer Admin-Token mehr. Die App erhält **Client-ID + Client-Secret**; Admin-Tokens werden per **OAuth Client-Credentials-Grant** gegen `/admin/oauth/access_token` gemintet und laufen nach **24 h** ab (Code cached sie ~24 h).
 
 **Ergebnis-Check:** Dry-run von `scripts/register-webhooks.ts` mintet einen Admin-Token
 und listet Subscriptions ohne 401. Metafield-Seed (`check-metafields.ts`) zeigt die
 Definitionen live.
+
+**Vier Lücken, die dieses Runbook nicht kannte (Befund #4):**
+
+- **Gap #1 — Ist-Zustands-Check VOR der App-Anlage.** Ein Befehl, der zeigt, welche
+  Apps und Webhook-Subscriptions bereits existieren. Verhindert genau das
+  Anti-Pattern #1 unten, das bei SILBE tagelanges 401-Debugging gekostet hat: man
+  legt eine zweite App an, ohne zu wissen, dass die Webhooks unter einer ersten
+  registriert sind.
+- **Gap #7 — Das Storefront-Token ist nur per API erzeugbar, und der API-Weg ist
+  SELBST GATED.** Die ursprüngliche Fassung sagte „die UI ist nicht scriptbar, die
+  API schon" — das stimmt, ist aber nicht voraussetzungsfrei: ohne
+  `unauthenticated_*`-Scopes an der App verweigern **beide** Pfade
+  (Mint ✅, `shop{}` ✅, GraphQL ❌, REST 403). „Agent-callable" gilt erst **nach**
+  einer manuellen Dashboard-Voraussetzung. Symptom bei fehlenden Scopes:
+  „App must be extendable".
+- **Gap #8 — Release ≠ Install.** Siehe Schritt 0.
+- **Gap #9 — Optional-Scopes-Feld.** Siehe Schritt 0.
+
+Gap #8 und #9 stehen bewusst in **Schritt 0**, weil sie vor allem anderen greifen —
+hier nur der Querverweis.
 
 **Bekannte Falle / Anti-Pattern #1 — „Old-vs-New-Secret" + App-Identität (kostete tagelanges 401-Debugging):**
 - **Shopify signiert Webhooks mit dem Secret der App, unter der sie registriert sind.**
@@ -79,6 +209,16 @@ Definitionen live.
 - **Ohne PCD-Freigabe** sind `browser_ip`/`user_agent` in orders/paid redacted → CAPI
   em/ip/ua leer → Match-Qualität bricht ein (still).
 
+> ⚠️ **Befund #5 — diese Falle war als SILBE-Sonderfall geschrieben und ist keiner.**
+> Der „Old-vs-New"-Teil klingt nach einer Altlast aus einer Migration, die ein neuer
+> Shop nicht hat. Das Allgemeine daran ist: **das Webhook-Signing-Secret ist eine
+> andere Größe als das OAuth-Client-Secret, und nur zufällig oft derselbe Wert.**
+> Für JEDEN neuen Shop gilt deshalb dieselbe Prüfung — nicht „hat dieser Shop eine
+> Old/New-Historie", sondern: signiert Shopify mit dem Wert, gegen den wir
+> verifizieren? Die Antwort liefert eine echte Lieferung mit `SHOPIFY_HMAC_DEBUG=1`,
+> nicht ein synthetischer lokal signierter POST — der gibt immer 200 und beweist
+> nichts.
+
 ---
 
 ## Schritt 2 — Env/Secrets provisionieren (Vercel Preview+Prod + lokal)
@@ -86,6 +226,14 @@ Definitionen live.
 **Status:** Fakten 🟢 verifiziert (`.env.example`; Block-A fail-fast PR #64; Memory `feedback-vercel-env-pull-destructive`) · Reihenfolge 🟡 rekonstruiert.
 
 **Voraussetzung:** Schritt 1 (Client-ID/Secret + Signing-Secret liegen vor). Vercel-Projekt verknüpft.
+
+> ⚠️ **Befund #6 — `silbe` bedeutet hier zwei verschiedene Dinge, und seit PR #73
+> ist die alte Beschreibung falsch.** `apps/silbe/` ist der **App-Ordner** im
+> Monorepo (Pfad), `silbe` als Brand-Name ist etwas anderes, und `SHOPIFY_SHOP` ist
+> die **Store-Subdomain** (`z9xkt0-2v`) — drei Bedeutungen, ein Wort. Für einen
+> Fork heißt das: der Ordnername wandert nicht automatisch mit der Brand, und wer
+> `silbe` global ersetzt, zerlegt Importpfade. Was tatsächlich pro Brand wechselt,
+> steht in `lib/brand.config.ts`, nicht im Ordnernamen.
 
 **Aktion:** den vollen Variablen-Satz aus `apps/silbe/.env.example` setzen — in **Vercel
 Preview UND Production** und lokal in `apps/silbe/.env.local`. Gruppen: Shopify (Storefront +
@@ -325,10 +473,25 @@ Eingangsbestätigung.
 **Voraussetzung:** Katalog + Storefront live.
 
 **Aktion:**
-1. **Gelato (Print-on-Demand):** `GELATO_API_KEY` + `GELATO_STORE_ID`; Gelato-Webhooks + eine
-   Test-Order durch den ganzen Flow (Cart → Checkout → Payment → Gelato → Versand).
-2. **SEO:** `METADATA_BASE_URL` (Prod-Domain; Fallback silbe.at). 301-Redirect-Map der
+1. **Print-on-Demand:** Provider-Keys + Webhooks + eine Test-Order durch den ganzen
+   Flow (Cart → Checkout → Payment → Provider → Versand).
+
+   > ⚠️ **Befund #7 (a):** Hier standen `GELATO_API_KEY` + `GELATO_STORE_ID` als
+   > seien sie der einzige Weg. Seit der Layer-1-Abstraktion ist der Provider
+   > austauschbar (`FulfillmentProvider`, PR #71) und ein Store kann **gemischt**
+   > sein — SILBE nutzt Gelato für Drucke und Printful für Tote Bags. Welcher
+   > Provider eine Variante erfüllt, steht im Varianten-Metafield
+   > `fulfillment.provider`, nicht in einer globalen Annahme. Für Printful:
+   > `PRINTFUL_API_TOKEN` + `PRINTFUL_STORE_ID`.
+
+2. **SEO:** `METADATA_BASE_URL` (Prod-Domain). 301-Redirect-Map der
    Alt-URLs — beim DNS-Switch (Phase 11) erweitern.
+
+   > ⚠️ **Befund #7 (b):** „Fallback silbe.at" ist **falsch und war gefährlich.**
+   > Seit PR #73/#75 gibt es keinen Fallback mehr — `site.origin` wirft, wenn die
+   > Variable fehlt. Der frühere Default hat auf einer fremden Domain `silbe.at`
+   > in Canonical, Sitemap, og:image und JSON-LD geschrieben, ohne dass irgendwo
+   > ein Fehler auftauchte. Absenz ist hier nicht die sichere Richtung.
 3. **LAUNCH-GATE.**
 
 **Ergebnis-Check:** Google Rich Results Test (1 PDP) grün; sitemap/robots erreichbar;
@@ -337,8 +500,26 @@ Test-Order in Gelato bestätigt.
 **Bekannte Falle:**
 - **LAUNCH-GATE — Stape Free→Paid VOR echtem Traffic:** der Free-Tier renewt Requests nicht
   (*„not subject to the pause logic"*) → der erste Traffic-Peak über das Monats-Limit killt
-  das Tracking **permanent** (kein Auto-Reset), und der Keepalive schützt davor **nicht**
-  (er löst nur den Inaktivitäts-Disable). verification-runbook §9.1.
+  das Tracking **permanent** (kein Auto-Reset). verification-runbook §9.1.
+
+  > ⚠️ **Befund #11 — der Keepalive schützt auch vor dem ANDEREN Mechanismus nicht,
+  > und es gibt keinen, der es täte.** Die frühere Fassung sagte, der Keepalive löse
+  > wenigstens den Inaktivitäts-Disable. Das ist **widerlegt**: Reaktivierung
+  > 2026-07-27, **15 lückenlos grüne `/healthz`-Pings**, Container trotzdem tot ab
+  > Tag 15 (2026-08-11), Grund laut Dashboard „did not receive requests for more
+  > than two weeks". `/healthz` zählt nicht auf die Inaktivitäts-Uhr.
+  >
+  > Und ein Keepalive, der zählen *würde*, wäre vertraglich kontraproduktiv:
+  > Stapes ToS definieren *„Anomalous Low-Usage Containers"* (< 4.000 Requests /
+  > 30 Tage **und** maschinengenerierte Muster / monitoring probes) als
+  > Abschaltgrund. Ein Container, der nur durch einen Ping lebt, **ist** der
+  > beschriebene Fall.
+  >
+  > **Factory-Konsequenz:** Jede neue Brand, die ihre erste Verkaufswoche ohne
+  > Umsatz durchläuft, verliert ihr serverseitiges Tracking — still, weil ein 404
+  > im Webhook-Ziel nirgends auffällt. Das Free→Paid-Gate gehört **vor den ersten
+  > echten Besucher**, nicht vor den Launch. Der Keepalive-Workflow ist seit
+  > 2026-08-12 abgeschaltet (`schedule:` auskommentiert, Datei erhalten).
 - **301 = 308:** Next `permanent:true` emittiert **HTTP 308** (Google behandelt 308 ≡ 301).
 
 ---
